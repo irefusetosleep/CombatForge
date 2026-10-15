@@ -63,11 +63,15 @@ local function normalizeR15(model: Model, humanoid: Humanoid, grey: Color3)
 	stripR15Appearance(model, humanoid, grey)
 	local oldHead = model:FindFirstChild("Head")
 	assert(oldHead and oldHead:IsA("BasePart"), "R15 dummy is missing its Head.")
+	local neck = oldHead:FindFirstChild("NeckRigAttachment")
+	assert(neck and neck:IsA("Attachment"), "R15 dummy is missing its neck attachment.")
 	-- Use a plain Part with the built-in classic head mesh instead of avatar UVs.
 	local head = Instance.new("Part")
 	head.Name = "Head"
-	head.Size = oldHead.Size
-	head.CFrame = oldHead.CFrame
+	head.Size = Vector3.new(2, 1, 1)
+	local attachmentScale = head.Size / oldHead.Size
+	-- Keep the neck in world space while fitting attachments to classic dimensions.
+	head.CFrame = oldHead.CFrame * CFrame.new(neck.Position - neck.Position * attachmentScale)
 	head.PivotOffset = oldHead.PivotOffset
 	head.Color = grey
 	head.Material = Enum.Material.SmoothPlastic
@@ -88,7 +92,11 @@ local function normalizeR15(model: Model, humanoid: Humanoid, grey: Color3)
 	mesh.TextureId = ""
 	mesh.Parent = head
 	for _, item in oldHead:GetChildren() do
-		if item.ClassName == "Attachment" then item.Parent = head end
+		if item.ClassName == "Attachment" then
+			local attachment = item :: Attachment
+			attachment.Position *= attachmentScale
+			attachment.Parent = head
+		end
 	end
 	if model.PrimaryPart == oldHead then model.PrimaryPart = head end
 	oldHead:Destroy()
@@ -152,6 +160,15 @@ function DummySpawner.spawn(rigType: Enum.HumanoidRigType?): (boolean, string)
 	description.RightArmColor = grey
 	description.LeftLegColor = grey
 	description.RightLegColor = grey
+	if rigType == Enum.HumanoidRigType.R15 then
+		-- Standard block R15 proportions, independent of avatar scale defaults.
+		description.BodyTypeScale = 0
+		description.ProportionScale = 0
+		description.HeightScale = 1
+		description.WidthScale = 1
+		description.DepthScale = 1
+		description.HeadScale = 1
+	end
 	local recording: string? = nil
 	local usedOrigin = false
 	local ok, failure = pcall(function()
