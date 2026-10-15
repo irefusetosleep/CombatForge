@@ -128,3 +128,5 @@ Rojo building validates packaging, not live Studio behavior. The specs in `Tests
 
 
 
+
+Version control: see [Versioning](docs/Versioning.md) for saving and undoing changes with Git.

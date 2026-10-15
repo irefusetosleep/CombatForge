@@ -44,15 +44,22 @@ return function(loadInstaller, loadSkill, loadServer, ConfigParser)
   local casts=0
   local server=true
   local settings={Damage=20,Cooldown=1,Range=6}
+  local networkOptions, networkEvent
   local skill=loadSkill({
    RunService={IsServer=function() return server end},
    ReplicatedStorage={WaitForChild=function() return {WaitForChild=function(_,name) return {WaitForChild=function() return name end} end} end},
    Debris={AddItem=function(_,part) check(not part.CanQuery and not part.CanCollide,"Preview cannot affect queries"); part:Destroy() end},
   },{
-   Box=function(center,size,options)
+   ClientToServer=function(options,debug)
+    networkOptions=options
+    check(debug==true and options.Offset==CFrame.new(1.5,0,-3),"Network debug and right-hand geometry")
+    networkEvent=Instance.new("BindableEvent"); table.insert(events,networkEvent)
+    return {HitDetected=networkEvent.Event,Destroy=function() networkEvent:Destroy() end}
+   end,
+   Box=function(center,size,options,debug)
     casts+=1
     check(options.Caster==caster and not options.CanHitCaster,"Caster protection")
-    check(size==Vector3.new(4,5,6) and center==root.CFrame*CFrame.new(0,0,-3),"Configuration drives geometry")
+    check(debug==true and size==Vector3.new(4,5,6) and center==root.CFrame*CFrame.new(-1.5,0,-3),"Configuration drives left-hand geometry and debug")
     local event=Instance.new("BindableEvent"); table.insert(events,event)
     return {HitDetected=event.Event,Cast=function() event:Fire({Target=victim,Humanoid=humanoid}); event:Fire({Target=caster,Humanoid=casterHumanoid}) end,Destroy=function() event:Destroy() end}
    end,
@@ -63,17 +70,22 @@ return function(loadInstaller, loadSkill, loadServer, ConfigParser)
   check(not skill.Activate(caster) and casts==1,"Cooldown blocks repeated request")
   now=12; check(skill.Activate(caster),"Cooldown expires")
   task.wait(); check(humanoid.Health==60,"Next activation damages again")
-  root:Destroy(); now=14; check(not skill.Activate(caster),"Reject missing root")
+  local tool={Parent=caster,Enabled=true}
+  skill.Bind(tool,{})
+  check(not networkOptions.Authorize({Character=victim}),"Unequipped user rejected")
+  now=14
+  check(networkOptions.Authorize({Character=caster}),"One network report starts regular scan")
+  networkEvent:Fire({Target=victim,Humanoid=humanoid},{Character=caster})
+  task.wait()
+  check(humanoid.Health==40,"Both modes damage shared target only once")
+  check(not networkOptions.Authorize({Character=caster}),"Both modes share cooldown")
+  tool.Enabled=false; now=16
+  check(not networkOptions.Authorize({Character=caster}),"Disabled Tool rejected")
+  root:Destroy(); now=18; check(not skill.Activate(caster),"Reject missing root")
   server=false; check(not pcall(skill.Activate,caster),"Reject client execution")
   for _,callback in callbacks do callback() end
   check(#previewWorld:GetChildren()==0,"Preview cleanup")
 
-  local requests=0
-  local tool={Parent=caster,Enabled=true}
-  local receive=loadServer(tool,function(character) check(character==caster,"Server chooses caster"); requests+=1 end)
-  receive({Character=victim}); check(requests==0,"Unequipped user rejected")
-  receive({Character=caster}); check(requests==1,"Equipped player accepted")
-  tool.Enabled=false; receive({Character=caster}); check(requests==1,"Disabled tool rejected")
  end)
  for _,event in events do event:Destroy() end
  for _,item in {storage,pack,previewWorld,hitbox,config,template,caster,victim} do item:Destroy() end

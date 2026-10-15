@@ -1,36 +1,24 @@
 # Example Slash
 
-In the plugin's main menu, click **Install Example Skill** in edit mode, then save your place. Installation adds:
+Click **Install Example Skill** in edit mode and save your place. The plugin installs the editable `ReplicatedStorage.CombatForge.Abilities.ExampleSlash` configuration, the shared `Runtime.Hitbox` module, and the **CombatForge Example Slash** Tool in StarterPack.
 
-```text
-ReplicatedStorage
-  CombatForge
-    Abilities
-      ExampleSlash                 -- editable four-field configuration
-    Runtime
-      Hitbox                       -- standalone detection module
-StarterPack
-  CombatForge Example Slash        -- Tool; RequiresHandle = false
-    ActivateSkill                  -- RemoteEvent; activation requests only
-    Client                         -- LocalScript; sends a request when clicked
-    Server                         -- Script; verifies equipped player
-    Skill                          -- ModuleScript; cooldown, hitbox and damage
-```
+Each click demonstrates both modes together:
 
-## Try it
+- **Left box:** a regular `Hitbox.Box` scan on the server.
+- **Right box:** a `Hitbox.ClientToServer` scan on the client, followed by server validation.
+- Both use the new final `true` debug parameter. Green snapshots last 0.25 seconds. The right box has a local prediction and a replicated server preview, so these may overlap or separate slightly under latency.
+- The boxes overlap by one stud. A shared per-activation target set ensures overlapping targets take damage only once.
 
-1. Add a Roblox rig/training dummy with a Humanoid to Workspace using Studio's rig builder. Put it near the player spawn. Use an NPC rig rather than another player's character for the first test.
-2. Press **Play**, equip **CombatForge Example Slash** from the hotbar, face the dummy and click while within six studs.
-3. A green box flashes in front of you. The dummy takes 20 damage once per activation; the cooldown is one second. Output prints each damaged target. A dummy with a ForceField may resist damage.
-4. Stop Play. Open **Update Skills → ExampleSlash** and change Damage, Cooldown or Range. Save, then start a new playtest to try those values. The config is required once per game session.
-5. Read `StarterPack.CombatForge Example Slash.Skill` for the commented implementation. `Client` and `Server` show the activation request and ownership check.
+The client sends one candidate report through the Tool's ActivateSkill RemoteEvent, including on a miss. The server endpoint checks that the sender has the enabled Tool equipped. Its Authorize callback starts the regular scan and initializes the shared damage set; then the runtime validates the client candidates against the right box on the server. Neither client predictions nor client-supplied damage are used to damage targets.
 
-Keep the configuration ModuleScript named **ExampleSlash**, since Skill requires that path. If you rename it, update the require path in Skill. The plugin editor accepts literal configuration data; keep executable behaviour in the separate Skill module.
+Add a training dummy, press Play, equip the Tool and click facing it. Default damage is 20, range is six studs, and cooldown is one second. Try targets on the left, right, and middle. The left box works without a client candidate; the right requires a client-reported target that also passes the server query. ForceFields can prevent damage.
 
-## What it demonstrates
+Edit Damage, Cooldown or Range through **Update Skills → ExampleSlash**, then restart the playtest. Network cooldown has a minimum of 0.05 seconds. Keep the configuration named ExampleSlash. Skill contains the regular scan, server endpoint and shared damage handling; Client creates the prediction endpoint; Server binds and cleans up the server endpoint. The configuration remains data only.
 
-The client requests activation without sending a target, damage or position. The server verifies the Tool is equipped by the requesting player's current character. The skill rejects dead/missing characters and applies a per-Humanoid cooldown using server time. It constructs a box from the server's character position and the configuration's Range, connects to HitDetected, and casts once. The hitbox groups character limbs into one target. The listener applies configured damage to living Humanoids and excludes self damage. The detector is cleaned up after event delivery; a short-lived, non-queryable Part shows the scan's position.
+This example has no animations or wall obstruction checks. The runtime has no latency rewind. See [Hitboxes](Hitboxes.md) for the API and validation limits.
 
-This is a minimal attack example: it has no animation or wall obstruction test. Each activation scans immediately; the visible box is a preview, not a continuous attack. See [Hitbox documentation](Hitboxes.md) for sphere examples and detection limits. To use a sphere, replace Hitbox.Box with Hitbox.Sphere(root.Position, Config.Range, options).
+## Updating an existing example
 
-Installation is undoable and installs a missing Hitbox dependency automatically. Reinstalling a complete example preserves edited configuration and Tool code. Conflicting names or incompatible runtime/configuration objects are reported before changes are made. Back up and rename a conflicting object to install a fresh copy. To remove the example, delete its StarterPack Tool and ExampleSlash configuration; keep the shared Hitbox module if other skills use it.
+The installer preserves existing Tool code and configuration. To get this revision, stop Play, move the old **CombatForge Example Slash** Tool from StarterPack into ServerStorage as a backup, then click **Install Example Skill**. If the installer reports an outdated Hitbox module, rename it to HitboxBackup and retry. Your supported ExampleSlash configuration is retained. Save and restart the playtest afterward.
+
+Installation supports Studio undo. Git versions the source project separately; see [Versioning](Versioning.md).
