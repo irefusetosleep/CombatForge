@@ -6,6 +6,38 @@ local Selection = game:GetService("Selection")
 local DummySpawner = {}
 local busy = false
 
+local function stripR15Appearance(model: Model, humanoid: Humanoid, grey: Color3)
+	-- The generated body already has its final dimensions; scale values are stripped.
+	humanoid.AutomaticScalingEnabled = false
+	local animator = humanoid:FindFirstChildOfClass("Animator")
+	-- Retain only the body and its animation dependencies. Reject whole unsupported
+	-- subtrees so accessory Handles and descendants of inherited scripts cannot survive.
+	local function stripChildren(parent: Instance)
+		for _, item in parent:GetChildren() do
+			local keep = false
+			if item:IsA("BasePart") and parent == model then
+				keep = true
+				item.Color = grey
+				item.Material = Enum.Material.SmoothPlastic
+				item.MaterialVariant = ""
+				item.Reflectance = 0
+				if item:IsA("MeshPart") then item.TextureID = "" end
+			elseif item == humanoid and parent == model then
+				keep = true
+			elseif item == animator and parent == humanoid then
+				keep = true
+			elseif item.ClassName == "Attachment" and (parent:IsA("BasePart") or parent.ClassName == "Attachment") then
+				keep = true
+			elseif item:IsA("Motor6D") and parent:IsA("BasePart") then
+				local part0, part1 = item.Part0, item.Part1
+				keep = part0 ~= nil and part1 ~= nil and part0.Parent == model and part1.Parent == model
+			end
+			if keep then stripChildren(item) else item:Destroy() end
+		end
+	end
+	stripChildren(model)
+end
+
 function DummySpawner.spawn(rigType: Enum.HumanoidRigType?): (boolean, string)
 	if RunService:IsRunning() then return false, "Stop the playtest before spawning a dummy." end
 	if busy then return false, "A dummy is already being created." end
@@ -41,6 +73,9 @@ function DummySpawner.spawn(rigType: Enum.HumanoidRigType?): (boolean, string)
 		humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.Subject
 		humanoid.NameDisplayDistance = 1000
 		humanoid.HealthDisplayDistance = 1000
+		if humanoid.RigType == Enum.HumanoidRigType.R15 then
+			stripR15Appearance(model, humanoid, grey)
+		end
 		local head = model:FindFirstChild("Head")
 		assert(head, "Could not create the dummy's Head.")
 		-- Clear inherited head textures before adding one clean classic face.
