@@ -63,7 +63,7 @@ local function normalizeR15(model: Model, humanoid: Humanoid, grey: Color3)
 	stripR15Appearance(model, humanoid, grey)
 	local oldHead = model:FindFirstChild("Head")
 	assert(oldHead and oldHead:IsA("BasePart"), "R15 dummy is missing its Head.")
-	-- A plain block gives the face a planar front instead of the avatar mesh's UVs.
+	-- Use a plain Part with the built-in classic head mesh instead of avatar UVs.
 	local head = Instance.new("Part")
 	head.Name = "Head"
 	head.Size = oldHead.Size
@@ -82,6 +82,11 @@ local function normalizeR15(model: Model, humanoid: Humanoid, grey: Color3)
 	head.Transparency = oldHead.Transparency
 	head.CastShadow = oldHead.CastShadow
 	head.Parent = model
+	local mesh = Instance.new("SpecialMesh")
+	mesh.MeshType = Enum.MeshType.Head
+	mesh.Scale = Vector3.new(1.25, 1.25, 1.25)
+	mesh.TextureId = ""
+	mesh.Parent = head
 	for _, item in oldHead:GetChildren() do
 		if item.ClassName == "Attachment" then item.Parent = head end
 	end
