@@ -22,3 +22,11 @@ This example has no animations or wall obstruction checks. The runtime has no la
 The installer preserves existing Tool code and configuration. To get this revision, stop Play, move the old **CombatForge Example Slash** Tool from StarterPack into ServerStorage as a backup, then click **Install Example Skill**. If the installer reports an outdated Hitbox module, rename it to HitboxBackup and retry. Your supported ExampleSlash configuration is retained. Save and restart the playtest afterward.
 
 Installation supports Studio undo. Git versions the source project separately; see [Versioning](Versioning.md).
+
+## Spawn a test dummy
+
+Click **Spawn Dummy** on CombatForge's main menu in edit mode. It casts a ray 1,000 studs forward from the camera and places a standard R6 dummy above the first collidable surface. If nothing is hit (or no camera exists), the dummy's pivot is placed at exactly `(0, 0, 0)`.
+
+Every body part is unanchored. The dummy has 100 health, the display name **Dummy**, and Roblox's native health bar set to AlwaysOn, with name and health display distances of 1,000 studs. It is selected after spawning, and creation supports Studio undo. Physics applies during Play, so a dummy without ground underneath will fall.
+
+The display uses Roblox's [Humanoid health and name properties](https://create.roblox.com/docs/characters/name-health-display).

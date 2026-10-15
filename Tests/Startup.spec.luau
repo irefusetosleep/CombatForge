@@ -42,7 +42,7 @@ return function(loadMain)
  }
  loadMain(plugin, {
   UI = {mount = function() mounts += 1 end}, AbilityManager = {}, Theme = {new = function() return {} end},
-  RuntimeInstaller = {}, ExampleInstaller = {},
+  RuntimeInstaller = {}, ExampleInstaller = {}, DummySpawner = {},
  })
  check(mounts == 1 and active == false, "Startup builds editor once")
  click.Fire(); check(widget.Enabled, "Toolbar opens")

@@ -31,6 +31,7 @@ $modules = @{
     RuntimeInstaller = 'Plugin/RuntimeInstaller.luau'
     HitboxTemplate = 'Runtime/Hitbox.luau'
     ExampleInstaller = 'Plugin/ExampleInstaller.luau'
+    DummySpawner = 'Plugin/DummySpawner.luau'
     ExampleConfigTemplate = 'Examples/ExampleSlashConfig.luau'
 }
 if ($root.SelectNodes('Item').Count -ne $modules.Count + 1) { throw 'Unexpected plugin child count.' }

@@ -5,7 +5,7 @@ local AbilityManager = require(script.Parent.AbilityManager)
 local Theme = require(script.Parent.Theme)
 local ColourPicker = require(script.Parent.ColourPicker)
 
-function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), preferences: typeof(Theme.new())?, installHitbox: (() -> (boolean, string))?, installExample: (() -> (boolean, string))?)
+function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), preferences: typeof(Theme.new())?, installHitbox: (() -> (boolean, string))?, installExample: (() -> (boolean, string))?, spawnDummy: (() -> (boolean, string))?)
  local settings = preferences or Theme.new()
  local palette = Theme.palette(settings.get())
  local root = Instance.new("ScrollingFrame")
@@ -284,6 +284,18 @@ function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), 
   button("CreateNewSkill", "Create New Skill", function() showForm(nil) end, true)
   button("UpdateSkills", "Update Skills", showList)
   button("Settings", "Settings", function() showSettings(nil) end)
+  if spawnDummy then
+   local status: TextLabel
+   button("SpawnDummy", "Spawn Dummy", function()
+    busy = true
+    status.Text = "Creating dummy…"
+    local ok, spawned, message = pcall(spawnDummy)
+    busy = false
+    status.Text = if ok then message else "Could not spawn dummy: " .. tostring(spawned)
+    status.TextColor3 = if ok and spawned then green else red
+   end)
+   status = label("DummyStatus", "Spawn an unanchored test dummy where the camera is facing, or at (0, 0, 0) if nothing is hit.", 14)
+  end
   if installExample then
    local status: TextLabel
    button("InstallExample", "Install Example Skill", function()
