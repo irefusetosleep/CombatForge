@@ -43,7 +43,16 @@ function DummySpawner.spawn(rigType: Enum.HumanoidRigType?): (boolean, string)
 		humanoid.HealthDisplayDistance = 1000
 		local head = model:FindFirstChild("Head")
 		assert(head, "Could not create the dummy's Head.")
-		local face = head:FindFirstChildWhichIsA("Decal") or Instance.new("Decal")
+		-- Clear inherited head textures before adding one clean classic face.
+		if head:IsA("MeshPart") then head.TextureID = "" end
+		for _, item in head:GetDescendants() do
+			if item:IsA("Decal") or item:IsA("SurfaceAppearance") then
+				item:Destroy()
+			elseif item:IsA("SpecialMesh") then
+				item.TextureId = ""
+			end
+		end
+		local face = Instance.new("Decal")
 		face.Name = "face"
 		face.Face = Enum.NormalId.Front
 		face.Texture = "rbxasset://textures/face.png"
