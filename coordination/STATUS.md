@@ -3,11 +3,13 @@
 Routing preference: Simple, low-compute edits go to CombatForge Worker - Edits
 (configured GPT-6 Luna per the user); coordinator reviews and delivers the result.
 
-Task: Unlock newly spawned dummy parts.
-Owner: Coordinator; small change, no worker assignments.
-Files: Plugin/DummySpawner.luau and coordination/STATUS.md.
-Acceptance: Every spawned BasePart has Locked set to false.
-Status: Completed and installed with backup; no active assignments.
-Checks: Rojo build, scripts/Test-PluginPackage.ps1 and git diff --check passed.
-Installation: scripts/Install-Plugin.ps1 verified the installed file hash.
-Scope: Newly spawned dummies; existing Studio dummies were not modified.
+Task ID: DUMMY-GREY-01.
+Objective: Spawn a default grey R6 Roblox dummy with the regular smiling face.
+Owner: CombatForge Worker - Edits; coordinator accepted after diff review.
+Exclusive worker file: Plugin/DummySpawner.luau.
+Coordinator file: coordination/STATUS.md.
+Acceptance: Uniform grey body, standard smile, no clothing/accessories; preserve
+unlocked/unanchored parts, idle, health, positioning and undo behavior.
+Checks: git diff --check, Rojo build and package validation passed.
+Delivery: Installed with backup and verified file hash. No active assignments.
+Scope: Newly spawned dummies; no live Studio visual check performed.

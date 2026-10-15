@@ -12,6 +12,13 @@ function DummySpawner.spawn(): (boolean, string)
 	busy = true
 	local dummy: Model? = nil
 	local description = Instance.new("HumanoidDescription")
+	local grey = Color3.fromRGB(163, 162, 165)
+	description.HeadColor = grey
+	description.TorsoColor = grey
+	description.LeftArmColor = grey
+	description.RightArmColor = grey
+	description.LeftLegColor = grey
+	description.RightLegColor = grey
 	local recording: string? = nil
 	local usedOrigin = false
 	local ok, failure = pcall(function()
@@ -34,10 +41,19 @@ function DummySpawner.spawn(): (boolean, string)
 		humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.Subject
 		humanoid.NameDisplayDistance = 1000
 		humanoid.HealthDisplayDistance = 1000
+		local head = model:FindFirstChild("Head")
+		assert(head, "Could not create the dummy's Head.")
+		local face = head:FindFirstChildWhichIsA("Decal") or Instance.new("Decal")
+		face.Name = "face"
+		face.Face = Enum.NormalId.Front
+		face.Texture = "rbxasset://textures/face.png"
+		face.Parent = head
 		for _, item in model:GetDescendants() do
 			if item:IsA("BasePart") then
 				item.Anchored = false
 				item.Locked = false
+			elseif item:IsA("Accessory") or item:IsA("Clothing") or item:IsA("ShirtGraphic") then
+				item:Destroy()
 			end
 		end
 		local idle = script:WaitForChild("IdleTemplate"):Clone() :: Script
