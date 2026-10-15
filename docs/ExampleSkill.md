@@ -30,3 +30,5 @@ Click **Spawn Dummy** on CombatForge's main menu in edit mode. It casts a ray 1,
 Every body part is unanchored. The dummy has 100 health, the display name **Dummy**, and Roblox's native health bar set to AlwaysOn, with name and health display distances of 1,000 studs. It is selected after spawning, and creation supports Studio undo. Physics applies during Play, so a dummy without ground underneath will fall.
 
 The display uses Roblox's [Humanoid health and name properties](https://create.roblox.com/docs/characters/name-health-display).
+
+Newly spawned dummies include a server-side DummyIdle script that loops the classic R6 idle animation (180435571) during Play. It uses Idle priority so attack animations can override it, and stops on death or removal. Existing dummies need to be respawned to receive the script. Animations do not automatically play in edit mode.

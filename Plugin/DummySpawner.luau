@@ -37,6 +37,10 @@ function DummySpawner.spawn(): (boolean, string)
 		for _, item in model:GetDescendants() do
 			if item:IsA("BasePart") then item.Anchored = false end
 		end
+		local idle = script:WaitForChild("IdleTemplate"):Clone() :: Script
+		idle.Name = "DummyIdle"
+		idle.Enabled = true
+		idle.Parent = model
 		if hit then
 			-- Raise the pivot so the feet rest above the surface instead of inside it.
 			local bounds, size = model:GetBoundingBox()

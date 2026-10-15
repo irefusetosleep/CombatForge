@@ -8,7 +8,10 @@
       "HitboxTemplate": { "$path": "Runtime/Hitbox.luau" },
       "RuntimeInstaller": { "$path": "Plugin/RuntimeInstaller.luau" },
       "ExampleInstaller": { "$path": "Plugin/ExampleInstaller.luau" },
-      "DummySpawner": { "$path": "Plugin/DummySpawner.luau" },
+      "DummySpawner": {
+        "$path": "Plugin/DummySpawner.luau",
+        "IdleTemplate": { "$path": "Runtime/DummyIdle.server.luau", "$properties": { "Disabled": true } }
+      },
       "ExampleConfigTemplate": { "$path": "Examples/ExampleSlashConfig.luau" },
       "ExampleToolTemplate": {
         "$className": "Tool",

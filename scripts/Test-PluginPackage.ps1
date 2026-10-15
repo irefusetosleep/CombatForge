@@ -41,6 +41,11 @@ foreach ($moduleName in $modules.Keys) {
     Test-Source $matches[0] $modules[$moduleName]
 }
 $tool = $root.SelectSingleNode("Item[@class='Tool'][Properties/string[@name='Name']='ExampleToolTemplate']")
+$idle = $root.SelectSingleNode("Item[@class='ModuleScript'][Properties/string[@name='Name']='DummySpawner']/Item[@class='Script'][Properties/string[@name='Name']='IdleTemplate']")
+if ($null -eq $idle -or $idle.SelectSingleNode("Properties/bool[@name='Disabled']").InnerText -ne 'true') {
+    throw 'Dummy idle template must exist and remain disabled inside the plugin.'
+}
+Test-Source $idle 'Runtime/DummyIdle.server.luau'
 if ($null -eq $tool -or $tool.SelectNodes('Item').Count -ne 4) { throw 'Missing example Tool or unexpected Tool children.' }
 if ($tool.SelectSingleNode("Properties/bool[@name='RequiresHandle']").InnerText -ne 'false') { throw 'Example Tool must work without a Handle.' }
 foreach ($entry in @(@('Skill', 'ModuleScript', 'Examples/ExampleSlash.luau'), @('Server', 'Script', 'Examples/ExampleTool.server.luau'), @('Client', 'LocalScript', 'Examples/ExampleTool.client.luau'))) {
