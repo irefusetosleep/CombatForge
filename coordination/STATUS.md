@@ -1,5 +1,8 @@
 # Current coordination state
 
+Routing preference: Simple, low-compute edits go to CombatForge Worker - Edits
+(configured GPT-6 Luna per the user); coordinator reviews and delivers the result.
+
 Task: Unlock newly spawned dummy parts.
 Owner: Coordinator; small change, no worker assignments.
 Files: Plugin/DummySpawner.luau and coordination/STATUS.md.

@@ -7,7 +7,10 @@ for the assigned task; do not load the old development chat by default.
 
 - The user requested a coordinator/worker workflow. Use one coordinator and at
   most two concurrent workers when a task has independent, substantial parts.
-  Complete small or dependent tasks with one agent to avoid delegation overhead.
+  Route simple, low-compute edits (such as changing a dummy part property) to
+  **CombatForge Worker - Edits**, using its configured GPT-6 Luna model. Keep
+  briefs and coordinator reviews short; do not duplicate its implementation work.
+  Use the specialist workers for substantial tasks that need their scope.
 - The coordinator owns the task plan, acceptance criteria, file ownership,
   integration, final validation, plugin installation and Git commits.
 - Workers receive a compact brief: objective, relevant paths, files they may

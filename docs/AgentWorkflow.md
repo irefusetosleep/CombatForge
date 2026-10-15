@@ -3,11 +3,15 @@
 Use the **CombatForge Coordinator** chat for new features and bugs. It owns the
 plan, integration, validation, plugin installation and final Git commit.
 
-The two persistent specialist chats are **CombatForge Worker - Plugin UI** and
-**CombatForge Worker - Runtime**. They start with short project context, rather
+The persistent worker chats are **CombatForge Worker - Edits**,
+**CombatForge Worker - Plugin UI** and **CombatForge Worker - Runtime**.
+They start with short project context, rather
 than inheriting the full development conversation. Thread IDs are recorded in
 `coordination/threads.json` after setup.
 
+The Edits worker handles simple, low-compute changes, such as unlocking spawned
+dummy parts, using its configured GPT-6 Luna model as requested by the user.
+Keep its assignments and coordinator reviews brief; avoid duplicate implementation.
 The Plugin UI worker normally handles editor, theme and plugin interface work.
 The Runtime worker normally handles hitboxes, examples and dummy behavior. These
 are starting scopes: each assignment defines its exact allowed files. Shared
@@ -27,12 +31,14 @@ For each substantial task, the coordinator writes a compact assignment in
 benefits from separate context. Each worker receives the objective, relevant paths,
 allowed files, acceptance criteria and checks. It returns a short result. The
 coordinator reviews the combined diff and runs necessary integration checks once.
-Small changes stay with one agent.
+Small changes go to the Edits worker, followed by a focused coordinator review.
+At most two workers run concurrently.
 
 This aims to reduce repeated context and duplicated effort. It does not guarantee
 lower total tokens: worker startup and coordination also consume tokens. Model
 selection remains at its configured default. Coordinator reasoning is High;
-worker reasoning is Medium, matching the transcript's mature-project pattern.
+Plugin UI and Runtime worker reasoning is Medium, matching the transcript's
+mature-project pattern. Preserve the Edits chat's configured settings.
 No API service or paid integration
 is required for this local setup.
 

@@ -11,6 +11,13 @@
   },
   "workers": [
     {
+      "role": "edits",
+      "threadId": "01a14135-8c09-7bf2-a3db-9a7f125dcec9",
+      "hostId": "local",
+      "title": "CombatForge Worker - Edits",
+      "routing": "Simple, low-compute edits; user reports configured GPT-6 Luna. Preserve chat settings."
+    },
+    {
       "role": "plugin-ui",
       "threadId": "01a14130-2717-76c0-b029-86d701bd5720",
       "hostId": "local",
@@ -25,6 +32,6 @@
       "reasoningEffort": "medium"
     }
   ],
-  "modelPolicy": "Keep configured model defaults; no explicit model override was requested.",
+  "modelPolicy": "Preserve each chat's configured model settings. Route simple edits to the Edits chat, which the user has configured with GPT-6 Luna.",
   "authorization": "The user requested the supplied transcript's callback strategy: coordinator assigns and corrects, workers message completion, coordinator reviews and approves. Limited to these workflow threads for assigned CombatForge work."
 }
