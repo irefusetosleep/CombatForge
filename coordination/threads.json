@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "projectId": "5bdcd706-8584-4935-98bb-4aba53badcbd",
+  "mode": "callbacks",
+  "sharedCheckout": "C:\\Users\\lewis\\Documents\\CombatForge",
+  "coordinator": {
+    "threadId": "01a1412f-f7cf-7d92-9fda-905fbe554a41",
+    "hostId": "local",
+    "title": "CombatForge Coordinator",
+    "reasoningEffort": "high"
+  },
+  "workers": [
+    {
+      "role": "plugin-ui",
+      "threadId": "01a14130-2717-76c0-b029-86d701bd5720",
+      "hostId": "local",
+      "title": "CombatForge Worker - Plugin UI",
+      "reasoningEffort": "medium"
+    },
+    {
+      "role": "runtime",
+      "threadId": "01a14130-49e2-7ca2-be1f-6d6f75109357",
+      "hostId": "local",
+      "title": "CombatForge Worker - Runtime",
+      "reasoningEffort": "medium"
+    }
+  ],
+  "modelPolicy": "Keep configured model defaults; no explicit model override was requested.",
+  "authorization": "The user requested the supplied transcript's callback strategy: coordinator assigns and corrects, workers message completion, coordinator reviews and approves. Limited to these workflow threads for assigned CombatForge work."
+}
