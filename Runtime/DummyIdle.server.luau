@@ -9,12 +9,13 @@ if not animator then
 	animator.Parent = humanoid
 end
 local animation = Instance.new("Animation")
-animation.Name = "R6Idle"
-animation.AnimationId = "rbxassetid://180435571"
+local isR15 = humanoid.RigType == Enum.HumanoidRigType.R15
+animation.Name = if isR15 then "R15Idle" else "R6Idle"
+animation.AnimationId = if isR15 then "rbxassetid://507766388" else "rbxassetid://180435571"
 local ok, result = pcall(function() return animator:LoadAnimation(animation) end)
 if not ok then
 	animation:Destroy()
-	warn("[CombatForge Dummy] Could not load R6 idle: " .. tostring(result))
+	warn("[CombatForge Dummy] Could not load " .. animation.Name .. ": " .. tostring(result))
 	return
 end
 local track = result :: AnimationTrack

@@ -6,7 +6,7 @@ local Selection = game:GetService("Selection")
 local DummySpawner = {}
 local busy = false
 
-function DummySpawner.spawn(): (boolean, string)
+function DummySpawner.spawn(rigType: Enum.HumanoidRigType?): (boolean, string)
 	if RunService:IsRunning() then return false, "Stop the playtest before spawning a dummy." end
 	if busy then return false, "A dummy is already being created." end
 	busy = true
@@ -28,7 +28,7 @@ function DummySpawner.spawn(): (boolean, string)
 		params.RespectCanCollide = true
 		params.IgnoreWater = true
 		local hit = if camera then workspace:Raycast(camera.CFrame.Position, camera.CFrame.LookVector * 1000, params) else nil
-		local model = Players:CreateHumanoidModelFromDescriptionAsync(description, Enum.HumanoidRigType.R6)
+		local model = Players:CreateHumanoidModelFromDescriptionAsync(description, rigType or Enum.HumanoidRigType.R6)
 		dummy = model
 		assert(not RunService:IsRunning(), "Stop the playtest before spawning a dummy.")
 		model.Name = "Dummy"

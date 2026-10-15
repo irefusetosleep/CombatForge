@@ -5,7 +5,7 @@ local AbilityManager = require(script.Parent.AbilityManager)
 local Theme = require(script.Parent.Theme)
 local ColourPicker = require(script.Parent.ColourPicker)
 
-function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), preferences: typeof(Theme.new())?, installHitbox: (() -> (boolean, string))?, installExample: (() -> (boolean, string))?, spawnDummy: (() -> (boolean, string))?)
+function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), preferences: typeof(Theme.new())?, installHitbox: (() -> (boolean, string))?, installExample: (() -> (boolean, string))?, spawnDummy: ((Enum.HumanoidRigType) -> (boolean, string))?)
  local settings = preferences or Theme.new()
  local palette = Theme.palette(settings.get())
  local root = Instance.new("ScrollingFrame")
@@ -21,6 +21,7 @@ function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), 
  local green = palette.success
  local red = palette.error
  local busy = false
+ local dummyRigType = Enum.HumanoidRigType.R6
  local order = 0
  local function reset()
   palette = Theme.palette(settings.get())
@@ -289,11 +290,64 @@ function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), 
    button("SpawnDummy", "Spawn Dummy", function()
     busy = true
     status.Text = "Creating dummy…"
-    local ok, spawned, message = pcall(spawnDummy)
+    local ok, spawned, message = pcall(spawnDummy, dummyRigType)
     busy = false
     status.Text = if ok then message else "Could not spawn dummy: " .. tostring(spawned)
     status.TextColor3 = if ok and spawned then green else red
    end)
+   local selector = Instance.new("Frame")
+   selector.Size = UDim2.new(1, -8, 0, 36)
+   selector.BackgroundColor3 = palette.surface
+   selector.BorderSizePixel = 0
+   place(selector, "DummyRigSelector")
+   local outerCorner = Instance.new("UICorner")
+   outerCorner.CornerRadius = UDim.new(0, 8)
+   outerCorner.Parent = selector
+   local selected = Instance.new("Frame")
+   selected.Name = "SelectedSegment"
+   selected.Size = UDim2.fromScale(0.5, 1)
+   selected.BackgroundColor3 = palette.accent
+   selected.BorderSizePixel = 0
+   selected.Parent = selector
+   local selectedCorner = Instance.new("UICorner")
+   selectedCorner.CornerRadius = outerCorner.CornerRadius
+   selectedCorner.Parent = selected
+   -- Square the adjoining edge while keeping the outer end rounded.
+   local join = Instance.new("Frame")
+   join.Name = "InnerEdge"
+   join.Size = UDim2.fromScale(0.5, 1)
+   join.BackgroundColor3 = palette.accent
+   join.BorderSizePixel = 0
+   join.Parent = selected
+   local segments: { TextButton } = {}
+   local function updateSelection()
+    local isR6 = dummyRigType == Enum.HumanoidRigType.R6
+    selected.Position = UDim2.fromScale(if isR6 then 0 else 0.5, 0)
+    join.Position = UDim2.fromScale(if isR6 then 0.5 else 0, 0)
+    for index, segment in segments do
+     segment.TextColor3 = if (index == 1) == isR6 then palette.accentText else palette.text
+    end
+   end
+   for index, rigType in { Enum.HumanoidRigType.R6, Enum.HumanoidRigType.R15 } do
+    local segment = Instance.new("TextButton")
+    segment.Name = rigType.Name
+    segment.Text = rigType.Name
+    segment.Size = UDim2.fromScale(0.5, 1)
+    segment.Position = UDim2.fromScale((index - 1) * 0.5, 0)
+    segment.BackgroundTransparency = 1
+    segment.BorderSizePixel = 0
+    segment.Font = Enum.Font.GothamBold
+    segment.TextSize = 14
+    segment.ZIndex = 2
+    segment.Parent = selector
+    table.insert(segments, segment)
+    segment.Activated:Connect(function()
+     if busy then return end
+     dummyRigType = rigType
+     updateSelection()
+    end)
+   end
+   updateSelection()
    status = label("DummyStatus", "Spawn an unanchored test dummy where the camera is facing, or at (0, 0, 0) if nothing is hit.", 14)
   end
   if installExample then

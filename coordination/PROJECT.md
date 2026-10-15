@@ -18,8 +18,9 @@ no remote. Builds and plugin backups are ignored. Local installed plugin:
   One click runs a regular left box and validated client/server right box;
   shared per-activation hit tracking prevents double damage.
 - Dummy: `Plugin/DummySpawner.luau`, `Runtime/DummyIdle.server.luau`.
-  Camera-facing unanchored R6 dummy; void fallback origin; native name/health;
-  default idle runs on the server during Play.
+  Camera-facing unanchored grey R6/R15 dummy, selected beneath Spawn Dummy;
+  classic smile, unlocked parts, void fallback origin, native name/health;
+  rig-specific default idle runs on the server during Play.
 - Existing checks: `Tests/*.spec.luau`. These return functions accepting isolated
   dependencies/loaders; they are not a ready-to-run shell test suite. Studio MCP
   can execute Luau. No standalone Luau test runner is currently configured.
