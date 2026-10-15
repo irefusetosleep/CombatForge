@@ -35,7 +35,10 @@ function DummySpawner.spawn(): (boolean, string)
 		humanoid.NameDisplayDistance = 1000
 		humanoid.HealthDisplayDistance = 1000
 		for _, item in model:GetDescendants() do
-			if item:IsA("BasePart") then item.Anchored = false end
+			if item:IsA("BasePart") then
+				item.Anchored = false
+				item.Locked = false
+			end
 		end
 		local idle = script:WaitForChild("IdleTemplate"):Clone() :: Script
 		idle.Name = "DummyIdle"

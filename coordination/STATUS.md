@@ -1,24 +1,10 @@
 # Current coordination state
 
-No feature work assigned. The coordinator and two specialist chats are created;
-their IDs are in threads.json. Completed plugin features are summarized in PROJECT.md.
-
-The user supplied the video transcript. Adopted strategy: callback-driven worker
-completion, coordinator review and targeted corrections, no polling or keep-alive
-goals. Coordinator reasoning High; worker reasoning Medium; configured model
-defaults retained because the transcript does not identify an exact Sol version.
-
-## Assignment format
-
-Task ID / objective:
-Owner / status:
-Relevant context and paths:
-Allowed files (exclusive ownership):
-Acceptance criteria:
-Checks to run:
-Dependencies / integration notes:
-Result path or concise completion summary:
-
-Replace the empty format with active assignments when work starts. The coordinator
-alone updates this file. Workers report results in their assigned chat or return
-channel, or in a coordinator-assigned result file if explicitly requested.
+Task: Unlock newly spawned dummy parts.
+Owner: Coordinator; small change, no worker assignments.
+Files: Plugin/DummySpawner.luau and coordination/STATUS.md.
+Acceptance: Every spawned BasePart has Locked set to false.
+Status: Completed and installed with backup; no active assignments.
+Checks: Rojo build, scripts/Test-PluginPackage.ps1 and git diff --check passed.
+Installation: scripts/Install-Plugin.ps1 verified the installed file hash.
+Scope: Newly spawned dummies; existing Studio dummies were not modified.
