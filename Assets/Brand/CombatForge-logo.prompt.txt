@@ -1,0 +1,8 @@
+Generated with the built-in image_gen tool. Transparent background requested.
+
+Create one very simple Roblox-style logo icon for CombatForge.
+Subject: a sword resting on a small anvil, with a hammer striking the sword and a few chunky sparks at the impact point.
+Only those elements. No text, letters, initials, badge, border, background scenery or extra objects.
+Style: playful blocky low-poly Roblox aesthetic rendered as a clean flat graphic, thick bold silhouettes, minimal details, solid colors, crisp edges. A compact three-quarter view makes the sword on the anvil and the striking hammer instantly readable. Dark charcoal anvil, light steel sword and hammer head, simple brown hammer handle, 3–5 bright orange/yellow sparks. No realistic metal textures, elaborate bevels, fine outlines, smoke, glow or gradients.
+Composition: centered, balanced square icon, generous transparent margins, readable at 32–64 pixels. Sword, anvil and hammer must be visually distinct and not merge into a monogram.
+Background: genuinely transparent. Finished standalone plugin logo.
