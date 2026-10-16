@@ -9,7 +9,7 @@ and the role registry apply this same precedence.
 ## Native role models
 
 - Planner: `model="gpt-6-astra"`, `reasoning_effort="medium"`,
-  `fork_turns="none"`; reusable dispatch label `planner_astra`.
+  `fork_turns="none"`; reusable dispatch label `planner`.
 - Small Edits: `model="gpt-6.1-sol"`, `fork_turns="none"`; omit the reasoning
   override and inherit the normal harness default. Dispatch label `small_edits`.
 - Coordinator, Coder, Tester and Reviewer keep their configured model and

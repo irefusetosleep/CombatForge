@@ -29,7 +29,7 @@
       "kind": "native-subagent",
       "owns": "planning material and clarified specification",
       "restriction": "No implementation or test code edits",
-      "taskName": "planner_astra",
+      "taskName": "planner",
       "model": "gpt-6-astra",
       "reasoning_effort": "medium",
       "fork_turns": "none"

@@ -1,5 +1,22 @@
 # Current coordination state
 
+Task: WORKFLOW-PLANNER-NAME-03 — saved Planner dispatch label renamed to planner.
+Planner model remains gpt-6-astra / medium / fork_turns none. Small Edits updated
+only the active label in registry and overrides; coordinator reviewed it.
+
+Current-session limitation: native agent entries cannot be renamed or deleted
+with exposed tools. planner_astra is retired and was interrupted; the original
+planner path is still reserved (replacement spawn returned already exists).
+Do not resume the old default-model planner. For a new planning assignment,
+create a fresh Astra Medium agent with a unique internal handle if the saved
+planner label remains occupied; its user-facing role is Planner. Session-scoped
+run history may remain visible. No new feature task is assigned.
+
+Validation: JSON role name/taskName/model/effort/fork consistency and diff check.
+No plugin source, tests or installed plugin changed.
+
+## Previous workflow update and feature delivery
+
 Task: WORKFLOW-MODELS-02 — completed model and simple-edit routing amendment.
 Planner: gpt-6-astra, medium reasoning; new native planner_astra instance created.
 Small Edits: gpt-6.1-sol, inherited reasoning; native small_edits instance created.
