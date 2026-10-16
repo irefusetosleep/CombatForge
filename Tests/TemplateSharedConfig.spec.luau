@@ -1,4 +1,4 @@
--- TEMPLATE-CONFIGS-02: generated sources and exact object references, with
+-- TEMPLATE-ALL-CONFIG-03: generated sources and exact object references, with
 -- isolated services/history. Native history and StarterPack cloning remain manual.
 return function(module, Config, templates, hitboxSource)
  local count=0
@@ -45,7 +45,11 @@ return function(module, Config, templates, hitboxSource)
    check(target.Parent==storage.CombatForge.Abilities,"AC01 Shared config exact parent")
    local parsed=assert(Config.parse(target.Source))
    local keys=0; for _ in parsed do keys+=1 end
-   check(keys==4 and parsed.Name==target.Name and parsed.Damage==20 and parsed.Cooldown==.75 and parsed.Range==(if kind=="Melee" then 6 else 80),"AC01 Exact four editor-supported default fields")
+   check(keys==(if kind=="Melee" then 8 else 10) and parsed.Name==target.Name and parsed.Damage==20 and parsed.Cooldown==.75 and parsed.Range==(if kind=="Melee" then 6 else 80),"AC01 Full supported shared fields")
+   check(parsed.AnimationId=="" and parsed.HitDelay==0,"AC01 Shared optional-animation defaults")
+   if kind=="Melee" then check(parsed.HitboxWidth==5 and parsed.HitboxHeight==5,"AC01 Shared melee dimensions")
+   else check(parsed.ProjectileSpeed==60 and parsed.ProjectileRadius==.5 and parsed.ProjectileLifetime==3,"AC01 Shared projectile defaults") end
+   check(latest.Skill.Source==templates[kind].Skill.Source,"AC01 Tool Skill source unchanged by generation/aim selection")
    for _,pair in pairs do check(pair.target~=target and pair.tool~=latest,"AC02 Mixed/repeated pairs stay distinct") end
    local clone=latest:Clone()
    check(clone.Skill.Config.Value==target,"AC02 Explicit Tool clone retains external shared reference")
@@ -75,11 +79,20 @@ return function(module, Config, templates, hitboxSource)
    local skill=load(pair)
    local expected=assert(Config.parse(pair.target.Source))
    local settings=assert(skill.GetConfig())
+   local activated,sent
+   local disconnect={Disconnect=function() end}
+   local clientRemote={FireServer=function(_,...) sent=table.pack(...) end}
+   local clientTool={Enabled=true,Activated={Connect=function(_,callback) activated=callback; return disconnect end},
+    WaitForChild=function(_,name) return if name=="Skill" then "Skill" else clientRemote end}
+   module("Templates/ToolClient.client.luau",{Players={LocalPlayer={GetMouse=function() return {Hit=CFrame.new(20,3,1)} end}}},{Skill=skill},
+    {script={Parent=clientTool,Destroying={Connect=function() return disconnect end}}})
+   activated()
+   check(sent and sent.n==(if expected.AimMode=="Mouse" then 1 else 0),"AC04 Actual Client reads generated shared AimMode through GetConfig")
    check(settings.Damage==expected.Damage and settings.Cooldown==expected.Cooldown and settings.Range==expected.Range,"AC03 Actual generated Skill consumes own shared values")
-   check(skill.Config.Damage==nil and skill.Config.Cooldown==nil and skill.Config.Range==nil,"AC03 Common settings absent from advanced defaults")
-   skill.Config.Damage=999; skill.Config.Cooldown=999; skill.Config.Range=999; skill.Config.HitDelay=.2
+   check(skill.Config==nil,"AC01/04 No local configuration/default table remains")
+   settings.Damage=999; settings.Cooldown=999; settings.Range=999; settings.HitDelay=.2
    local merged=assert(skill.GetConfig())
-   check(merged.Damage==expected.Damage and merged.Cooldown==expected.Cooldown and merged.Range==expected.Range and merged.HitDelay==.2,"AC03 Local shadows cannot override shared values; advanced setting remains")
+   check(merged.Damage==expected.Damage and merged.Cooldown==expected.Cooldown and merged.Range==expected.Range and merged.HitDelay==expected.HitDelay,"AC04 Returned snapshots cannot mutate authoritative required settings")
    if pair.kind=="Projectile" then check(merged.AimMode==(if pair==pairs[4] then "Body" else "Mouse"),"AC01 Baked aim setting retained") end
    local oldName=pair.target.Name; pair.target.Name="ExplorerRename"
    check(skill.GetConfig()~=nil,"AC02 Explorer rename preserves reference identity")
@@ -103,6 +116,15 @@ return function(module, Config, templates, hitboxSource)
    check(skill.GetConfig()==nil,"AC04 Wrong link class fails closed"); wrongLink:Destroy(); link.Parent=pair.tool.Skill
    local failing=load(pair,function() error("Injected config load failure") end)
    check(failing.GetConfig()==nil,"AC04 Runtime require failure fails closed")
+   for key in expected do
+    local missing=table.clone(expected); missing[key]=nil
+    check(load(pair,function() return missing end).GetConfig()==nil,"AC05 Missing required shared "..key.." fails closed")
+   end
+   local mutable=table.clone(expected)
+   local snapshotSkill=load(pair,function() return mutable end)
+   local captured=assert(snapshotSkill.GetConfig())
+   mutable.Damage=999; mutable.HitDelay=29
+   check(captured.Damage==expected.Damage and captured.HitDelay==expected.HitDelay,"AC04 Captured scalar config independent of mutable require table")
    for _,bad in {false,{Name="Broken",Damage=0/0,Cooldown=0,Range=6},{Name="Broken",Damage=20,Cooldown=-1,Range=6},{Name="Broken",Damage=20,Cooldown=0,Range=0},{Name="Broken",Damage=20,Cooldown=0,Range=math.huge}} do
     local invalid=load(pair,function() return bad end)
     check(invalid.GetConfig()==nil,"AC04 Invalid returned common settings fail closed")
@@ -117,32 +139,59 @@ return function(module, Config, templates, hitboxSource)
   local enemy=Instance.new("Model"); enemy.Parent=storage
   local enemyHum=Instance.new("Humanoid"); enemyHum.Parent=enemy
   local scans=0
+  local expectedHeight=5
   runtimeStub={Box=function(center,size,options)
    scans+=1
-   check(center==actorRoot.CFrame*CFrame.new(0,0,-6) and size==Vector3.new(9,5,12),"AC03 Generated shared Range and local advanced width drive actual Cast")
+   check(center==actorRoot.CFrame*CFrame.new(0,0,-6) and size==Vector3.new(9,expectedHeight,12),"AC04 Generated shared Range/width/height drive actual Cast")
    check(options.Caster==actor,"AC03 Existing caster protection retained")
    return {Cast=function() return {{Target=enemy,Humanoid=enemyHum},{Target=enemy,Humanoid=enemyHum}} end,Destroy=function() end}
   end}
+  local full=assert(Config.parse(first.target.Source)); full.HitboxWidth=9
+  first.target.Source=Config.serialize(full)
   local runtimeSkill=load(first)
-  runtimeSkill.Config.HitboxWidth=9; runtimeSkill.Config.Damage=999; runtimeSkill.Config.Cooldown=999; runtimeSkill.Config.Range=999
   local callback
   local noopSignal={Connect=function() return {Disconnect=function() end} end}
   local remote={OnServerEvent={Connect=function(_,handler) callback=handler; return {Disconnect=function() callback=nil end} end}}
   local tool={Parent=actor,Enabled=true,Unequipped=noopSignal,AncestryChanged=noopSignal,Destroying=noopSignal,
    WaitForChild=function(_,name) return if name=="Skill" then "Skill" else remote end}
-  module("Templates/ToolServer.server.luau",services,{Skill=runtimeSkill},{script={Parent=tool,Destroying=noopSignal},workspace=storage,
-   os={clock=function() return 10 end},task={spawn=function(job) job() end,wait=function() error("Default delay must remain zero") end},
-  })
+  local loadedAnimationId,animationPlays,generatedDelay,animationDestroyed=nil,0,nil,0
+  local timeout
+  local function startServer(skill)
+   module("Templates/ToolServer.server.luau",services,{Skill=skill},{script={Parent=tool,Destroying=noopSignal},workspace=storage,
+    os={clock=function() return 10 end},task={spawn=function(job) job() end,wait=function(seconds)
+     check(animationPlays==1,"AC04 Shared animation starts before configured hit delay"); generatedDelay=seconds
+    end,delay=function(_,callback) timeout=callback end},
+    Instance={new=function(class)
+     if class=="Animation" then return {Destroy=function() animationDestroyed+=1 end} end
+     assert(class=="Animator")
+     return {LoadAnimation=function(_,animation)
+      loadedAnimationId=animation.AnimationId
+      return {Ended=noopSignal,Play=function() animationPlays+=1 end,Stop=function() end,Destroy=function() end}
+     end}
+    end},
+   })
+  end
+  startServer(runtimeSkill)
   callback({Character=actor}); callback({Character=actor})
-  check(scans==2 and enemyHum.Health==26 and actorHum.Health==100,"AC03 Actual generated shared Damage37/Cooldown0 drive two server requests without local shadow authority")
+  check(scans==2 and enemyHum.Health==26 and actorHum.Health==100,"AC03 Actual full shared Damage37/Cooldown0/Width9 drive two server requests")
+  -- Fresh source load represents a subsequent Play, never a hot-reload claim.
+  full.AnimationId="rbxassetid://456"; full.HitDelay=.4; full.HitboxHeight=7
+  first.target.Source=Config.serialize(full); expectedHeight=7; enemyHum.Health=100
+  startServer(load(first)); callback({Character=actor})
+  check(scans==3 and enemyHum.Health==63 and generatedDelay==.4 and loadedAnimationId=="rbxassetid://456" and animationPlays==1,"AC04 Actual shared animation/delay/dimensions drive generated server pipeline")
+  check(animationDestroyed==1,"AC05 Shared animation temporary resource cleaned")
+  timeout()
   local activeParent=first.target.Parent; first.target.Parent=nil
   callback({Character=actor})
-  check(scans==2 and enemyHum.Health==26,"AC04 Actual Server fails closed on detached shared config")
+  check(scans==3 and enemyHum.Health==63,"AC04 Actual Server fails closed on detached shared config")
   first.target.Parent=activeParent
   actor:Destroy(); enemy:Destroy(); runtimeStub=nil
   -- A generated projectile consumes its edited external config in real spatial
   -- queries. Reload source for each simulated new Play; no hot reload claim.
   local projectilePair=pairs[2]
+  local projectileFull=assert(Config.parse(projectilePair.target.Source))
+  projectileFull.ProjectileSpeed=20; projectileFull.ProjectileRadius=.25; projectileFull.ProjectileLifetime=1
+  projectilePair.target.Source=Config.serialize(projectileFull)
   local projectileSnapshot=assert(manager.read(projectilePair.target))
   check(manager.update(projectileSnapshot,{Name=projectilePair.target.Name,Damage="13",Cooldown="1.25",Range="7"}),"AC03 Editor updates generated projectile common settings")
   spatialWorld=Instance.new("WorldModel"); spatialWorld.Name="CombatForgeSharedConfigSpatialChecks"; spatialWorld.Parent=workspace
@@ -154,23 +203,26 @@ return function(module, Config, templates, hitboxSource)
   local ticks=0
   local projectileServices=table.clone(services)
   projectileServices.RunService={IsServer=function() return true end,Heartbeat={Wait=function() ticks+=1; assert(ticks<20,"Unbounded shared projectile"); return .1 end}}
-  projectileServices.Debris={AddItem=function() end}
+  projectileServices.Debris={AddItem=function(_,visual) check(visual.Size==Vector3.one*.5,"AC04 Shared projectile radius drives actual geometry") end}
   local function castGeneratedProjectile()
    local skill=module("Templates/ProjectileSkill.luau",projectileServices,function(key)
     assert(key==projectilePair.target,"Projectile requires own exact external module")
     return assert(loadstring(key.Source))()
    end,{script=projectilePair.tool.Skill,workspace=spatialWorld},projectilePair.tool.Skill.Source)
-   skill.Config.Damage=999; skill.Config.Range=999
    local settings=assert(skill.GetConfig())
    skill.Cast(projectileCaster,projectileRoot.Position+Vector3.new(0,0,-100),function() return true end,settings)
    check(#spatialWorld:GetChildren()==2,"AC03 Generated projectile cleans actual visual")
   end
   castGeneratedProjectile()
-  check(ticks==2 and projectileHum.Health==100,"AC03 Generated shared Range7 stops real projectile short of target")
+  check(ticks==4 and projectileHum.Health==100,"AC03/04 Generated shared Range7/Speed20 stop real projectile short of target")
   projectileSnapshot=assert(manager.read(projectilePair.target))
   check(manager.update(projectileSnapshot,{Name=projectilePair.target.Name,Damage="13",Cooldown="1.25",Range="20"}),"AC03 Shared projectile reach editable without regenerating Tool")
   ticks=0; castGeneratedProjectile()
-  check(projectileHum.Health==87,"AC03 Next-load generated shared Range20/Damage13 reach and damage actual target")
+  check(ticks==6 and projectileHum.Health==87,"AC03/04 Next-load shared Range20/Damage13/Speed20 reach and damage actual target")
+  projectileFull=assert(Config.parse(projectilePair.target.Source)); projectileFull.ProjectileLifetime=.1
+  projectilePair.target.Source=Config.serialize(projectileFull)
+  ticks=0; castGeneratedProjectile()
+  check(ticks==1 and projectileHum.Health==87,"AC04 Shared lifetime limits real flight and prevents distant damage")
   spatialWorld:Destroy(); spatialWorld=nil
   -- AbilityManager deletion keeps the exact link; model history restoration by
   -- restoring Parent only, never claim native Ctrl+Z was exercised.

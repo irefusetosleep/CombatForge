@@ -405,7 +405,7 @@ function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), 
    end)
   end
   updateAim()
-  status = label("TemplateStatus", "Creates a Tool and linked shared config. Refresh Update Skills for damage, cooldown and range; edit its Skill module for animation and advanced settings. Changes apply next Play. Deleting the config disables its Tool.", 14)
+  status = label("TemplateStatus", "Creates a Tool and linked shared config. Refresh Update Skills for damage, cooldown and range; edit the linked config ModuleScript for animation and advanced settings. Changes apply next Play. Deleting the config disables its Tool.", 14)
  end
  showMenu = function()
   reset()

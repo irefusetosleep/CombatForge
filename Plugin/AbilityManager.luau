@@ -186,6 +186,15 @@ function AbilityManager.update(snapshot: Snapshot, inputs: AbilityConfig.Inputs)
 	if RunService:IsRunning() then return false, "Stop the playtest before updating a skill." end
 	local config, validationError = AbilityConfig.validate(inputs)
 	if not config then return false, validationError or "Invalid settings." end
+	-- Parse the checked source again rather than trusting mutable UI snapshot data.
+	-- Only common controls change; optional advanced fields retain their presence/value.
+	local previous, parseError = AbilityConfig.parse(snapshot.source)
+	if not previous then return false, parseError or "Unsupported skill source." end
+	for key, value in previous do
+		if key ~= "Name" and key ~= "Damage" and key ~= "Cooldown" and key ~= "Range" then
+			(config :: any)[key] = value
+		end
+	end
 	local module = snapshot.module
 	local function checkTarget(): string?
 		local folder, folderError = getAbilities()

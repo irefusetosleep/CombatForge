@@ -37,7 +37,7 @@ return function(loadInstaller, hitboxSource, templates)
     check(commits == before + 1, "AC06 Exactly one commit per creation")
     if kind == "Projectile" then
      local newest = pack:FindFirstChild("CombatForge Projectile Skill" .. (if mode == "Body" then " 2" else ""))
-     check(newest and newest.Skill.Source:find('AimMode = "' .. mode .. '"', 1, true), "AC01 Aim baked into editable generated source")
+     check(newest and newest.Skill.Config.Value.Source:find('AimMode = "' .. mode .. '"', 1, true), "AC01 Aim stored in linked config source")
     end
    end
   end

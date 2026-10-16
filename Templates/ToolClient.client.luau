@@ -7,7 +7,11 @@ local Skill = require(tool:WaitForChild("Skill"))
 local mouse = Players.LocalPlayer:GetMouse()
 local connection = tool.Activated:Connect(function()
 	if not tool.Enabled then return end
-	if Skill.Config.AimMode == "Mouse" then
+	local config = Skill.GetConfig()
+	if not config then return end
+	local ok, valid = pcall(Skill.Validate, config)
+	if not ok or not valid then return end
+	if config.AimMode == "Mouse" then
 		remote:FireServer(mouse.Hit.Position) -- aim intent, never a target or damage
 	else
 		remote:FireServer()

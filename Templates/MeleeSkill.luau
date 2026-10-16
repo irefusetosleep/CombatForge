@@ -2,14 +2,7 @@
 local RunService = game:GetService("RunService")
 local Storage = game:GetService("ReplicatedStorage")
 local Skill = {}
--- Advanced settings stay local. Edit shared damage/cooldown/range in Update Skills.
-Skill.Config = {
-	HitboxWidth = 5,
-	HitboxHeight = 5,
-	AnimationId = "", -- optional rbxassetid://... compatible with your rig
-	HitDelay = 0, -- seconds after animation starts before the hit
-}
--- Common settings come only from this Tool's explicit shared config link.
+-- All settings come only from this Tool's explicit shared config link.
 function Skill.GetConfig()
 	local function unavailable(reason)
 		warn("[CombatForge Template] " .. script.Parent.Name .. ": " .. reason .. ". Restore Skill.Config and its ModuleScript in ReplicatedStorage.CombatForge.Abilities; restart Play.")
@@ -26,22 +19,26 @@ function Skill.GetConfig()
 	end
 	local ok, shared = pcall(require, module)
 	if not ok then return unavailable("config could not load: " .. tostring(shared)) end
-	if type(shared) ~= "table" or type(shared.Name) ~= "string" then return unavailable("config must return Name, Damage, Cooldown and Range") end
-	for _, key in { "Damage", "Cooldown", "Range" } do
-		local value = shared[key]
-		if type(value) ~= "number" or value ~= value or value < 0 or value >= math.huge or (key == "Range" and value == 0) then
-			return unavailable("invalid shared " .. key)
-		end
-	end
-	local config = table.clone(Skill.Config)
-	config.Damage = shared.Damage; config.Cooldown = shared.Cooldown; config.Range = shared.Range
+	if type(shared) ~= "table" then return unavailable("config must return a settings table") end
+	-- Capture scalar values once; delayed attacks never reread a mutable required table.
+	local config = {}
+	for _, key in { "Name", "Damage", "Cooldown", "Range", "AnimationId", "HitDelay", "HitboxWidth", "HitboxHeight" } do config[key] = shared[key] end
+	if not Skill.Validate(config) then return unavailable("config has missing or invalid required settings") end
 	return config
 end
-function Skill.Validate(): boolean
-	local config = Skill.Config
+local function finite(value): boolean
+	return type(value) == "number" and value == value and math.abs(value) < math.huge
+end
+function Skill.Validate(config): boolean
+	if type(config) ~= "table" or type(config.Name) ~= "string" or #config.Name == 0 or #config.Name > 64
+		or not config.Name:match("^[A-Za-z_][A-Za-z0-9_]*$") then return false end
+	for _, key in { "Damage", "Cooldown", "Range", "HitDelay" } do
+		if not finite(config[key]) or config[key] < 0 then return false end
+	end
+	if config.Range <= 0 or config.HitDelay > 30 or type(config.AnimationId) ~= "string"
+		or #config.AnimationId > 1024 or config.AnimationId:find("[%z\1-\31\127]") then return false end
 	for _, key in { "HitboxWidth", "HitboxHeight" } do
-		local value = config[key]
-		if type(value) ~= "number" or value ~= value or value <= 0 or value >= math.huge then return false end
+		if not finite(config[key]) or config[key] <= 0 then return false end
 	end
 	return true
 end

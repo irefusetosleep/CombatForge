@@ -33,11 +33,6 @@ function Installer.install(hitbox: ModuleScript, template: Tool, kind: string, a
 			assert(unique(template, entry[1], entry[2]), "Template is missing " .. entry[1])
 		end
 		local source = (template:FindFirstChild("Skill") :: ModuleScript).Source
-		if kind == "Projectile" then
-			local count
-			source, count = string.gsub(source, 'AimMode = "Mouse", %-%- TEMPLATE_AIM_MODE', 'AimMode = "' .. aimMode .. '", -- TEMPLATE_AIM_MODE')
-			assert(count == 1, "Projectile template aim setting is missing or ambiguous")
-		end
 		local root = unique(Storage, "CombatForge", "Folder")
 		local abilities = if root then unique(root, "Abilities", "Folder") else nil
 		local runtime: Instance? = nil
@@ -60,7 +55,18 @@ function Installer.install(hitbox: ModuleScript, template: Tool, kind: string, a
 		while occupied[string.lower(configName)] do
 			configName = configBase .. configSuffix; configSuffix += 1
 		end
-		local configSource = AbilityConfig.serialize({ Name = configName, Damage = 20, Cooldown = 0.75, Range = if kind == "Melee" then 6 else 80 })
+		local settings: AbilityConfig.Config = {
+			Name = configName, Damage = 20, Cooldown = 0.75,
+			Range = if kind == "Melee" then 6 else 80,
+			AnimationId = "", HitDelay = 0,
+		}
+		if kind == "Melee" then
+			settings.HitboxWidth = 5; settings.HitboxHeight = 5
+		else
+			settings.ProjectileSpeed = 60; settings.ProjectileRadius = 0.5
+			settings.ProjectileLifetime = 3; settings.AimMode = aimMode
+		end
+		local configSource = AbilityConfig.serialize(settings)
 		local base = "CombatForge " .. kind .. " Skill"
 		name = base
 		local suffix = 2
@@ -104,7 +110,7 @@ function Installer.install(hitbox: ModuleScript, template: Tool, kind: string, a
 		end
 		return false, tostring(failure)
 	end
-	return true, "Created StarterPack." .. name .. " with ReplicatedStorage.CombatForge.Abilities." .. configName .. ". Refresh Update Skills to edit damage, cooldown and range; edit the Tool Skill for advanced settings. Changes apply next Play. Save your place."
+	return true, "Created StarterPack." .. name .. " with ReplicatedStorage.CombatForge.Abilities." .. configName .. ". Refresh Update Skills to edit damage, cooldown and range; edit that config ModuleScript for advanced settings. Changes apply next Play. Save your place."
 end
 
 return Installer

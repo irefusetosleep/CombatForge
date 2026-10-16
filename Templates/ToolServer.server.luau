@@ -55,7 +55,7 @@ table.insert(connections, remote.OnServerEvent:Connect(function(player, aimPoint
 	if config.Range <= 0 or config.HitDelay > 30 or type(config.AnimationId) ~= "string" then return end
 	if config.AimMode ~= nil and config.AimMode ~= "Mouse" and config.AimMode ~= "Body" then return end
 	if config.AimMode == "Mouse" and not validVector(aimPoint) then return end
-	local settingsOK, validSettings = pcall(Skill.Validate)
+	local settingsOK, validSettings = pcall(Skill.Validate, config)
 	if not settingsOK or not validSettings then return end
 	local now = os.clock()
 	if now < readyAt then return end

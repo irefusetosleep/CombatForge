@@ -22,9 +22,9 @@ no remote. Builds and plugin backups are ignored. Local installed plugin:
 - Basic templates: `Templates/*`, `Plugin/TemplateInstaller.luau`,
   `docs/TemplateSkills.md`. Template Skills creates fresh melee/projectile Tools
   in StarterPack; a Mouse Aim/Body Aim slider selects each projectile's mode.
-  Each new Tool has its own four-field config under CombatForge.Abilities, editable
+  Each new Tool has its own complete config under CombatForge.Abilities, editable
   through Update Skills. A nested Skill.Config ObjectValue links it by identity;
-  local Skill.Config Lua settings retain advanced options. Shared damage/cooldown/
+  all advanced settings live in the linked config ModuleScript. Shared damage/cooldown/
   range apply on the next Play session; existing Tools are not auto-migrated.
   AnimationId is optional; melee uses the shared Hitbox, projectile uses swept
   server spherecasts. Tests/RunTemplateChecks.luau accepts a source table for

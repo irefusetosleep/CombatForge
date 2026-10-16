@@ -29,6 +29,11 @@ return function(sources)
  local fixtures = {}
  local ok, failure = pcall(function()
   local parser = module("Plugin/AbilityConfig.luau")
+  if sources["Tests/TemplateAllConfig.spec.luau"] then
+   table.insert(results,compile("Tests/TemplateAllConfig.spec.luau")(parser,function(services)
+    return module("Plugin/AbilityManager.luau",services,{AbilityConfig=parser})
+   end))
+  end
   -- Existing attack tests now get honest shared-config objects. The new paired
   -- generation suite below separately consumes actual installer-created links.
   local function linkedModule(path, services, dependencies, globals)
@@ -39,7 +44,9 @@ return function(sources)
    local root=Instance.new("Folder"); root.Name="CombatForge"; root.Parent=storage
    local abilities=Instance.new("Folder"); abilities.Name="Abilities"; abilities.Parent=root
    local shared=Instance.new("ModuleScript"); shared.Name="TestSkill"; shared.Parent=abilities
-   local common={Name="TestSkill",Damage=20,Cooldown=.75,Range=if path:find("Melee",1,true) then 6 else 80}
+   local common={Name="TestSkill",Damage=20,Cooldown=.75,Range=if path:find("Melee",1,true) then 6 else 80,AnimationId="",HitDelay=0}
+   if path:find("Melee",1,true) then common.HitboxWidth=5; common.HitboxHeight=5
+   else common.ProjectileSpeed=60; common.ProjectileRadius=.5; common.ProjectileLifetime=3; common.AimMode="Mouse" end
    shared.Source=parser.serialize(common)
    local scriptObject=Instance.new("ModuleScript"); scriptObject.Name="Skill"; scriptObject.Parent=root
    local link=Instance.new("ObjectValue"); link.Name="Config"; link.Value=shared; link.Parent=scriptObject
@@ -77,7 +84,7 @@ return function(sources)
    table.insert(results, compile(path)(ui, actions))
   end
   table.insert(results, compile("Tests/Startup.spec.luau")(function(plugin, dependencies)
-   return module("Plugin/Main.server.luau", nil, dependencies, {plugin=plugin})
+   return module("Plugin/Main.server.luau", nil, dependencies, {plugin=plugin,task={defer=function(callback) return {callback=callback} end,cancel=function() end}})
   end))
   if sources["Tests/Example.spec.luau"] then
    table.insert(results, compile("Tests/Example.spec.luau")(function(services, configParser)

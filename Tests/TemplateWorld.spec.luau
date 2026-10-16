@@ -52,10 +52,10 @@ return function(module)
      check(visual:IsA("Part") and lifetime>0 and lifetime<math.huge,"AC05 Real projectile has bounded fallback cleanup")
     end},
    },nil,{workspace=world})
-   skill.Config.AimMode=mode
+   shared.AimMode=mode
    if options then
     if options.range then shared.Range=options.range end
-    if options.lifetime then skill.Config.ProjectileLifetime=options.lifetime end
+    if options.lifetime then shared.ProjectileLifetime=options.lifetime end
    end
    skill.Cast(actor,aim,function() return valid end,skill.GetConfig())
    check(noVisuals(),"AC05 Actual projectile Part cleaned after completion")
