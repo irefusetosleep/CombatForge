@@ -32,7 +32,7 @@ return function(module)
   local _,front=character("Front",Vector3.new(0,0,-4),true)
   local _,rear=character("Rear",Vector3.new(0,0,4))
   local _,distant=character("Distant",Vector3.new(0,0,-20))
-  melee.Cast(caster,nil,function() return true end)
+  melee.Cast(caster,nil,function() return true end,melee.GetConfig())
   check(front.Health==80,"AC04 Actual melee spatial query damages front target once across multiple parts")
   check(selfHum.Health==100 and rear.Health==100 and distant.Health==100,"AC04 Actual melee query excludes caster/rear/distant")
 
@@ -42,7 +42,7 @@ return function(module)
    local targetHum,aim=setup(actorRoot)
    local ticks=0
    local valid=true
-   local skill=module("Templates/ProjectileSkill.luau",{
+   local skill,shared=module("Templates/ProjectileSkill.luau",{
     RunService={IsServer=function() return true end,Heartbeat={Wait=function()
      ticks+=1; assert(ticks<100,"Projectile failed to terminate")
      if options and options.invalidate then valid=false end
@@ -54,10 +54,10 @@ return function(module)
    },nil,{workspace=world})
    skill.Config.AimMode=mode
    if options then
-    if options.range then skill.Config.Range=options.range end
+    if options.range then shared.Range=options.range end
     if options.lifetime then skill.Config.ProjectileLifetime=options.lifetime end
    end
-   skill.Cast(actor,aim,function() return valid end)
+   skill.Cast(actor,aim,function() return valid end,skill.GetConfig())
    check(noVisuals(),"AC05 Actual projectile Part cleaned after completion")
    check(actorHum.Health==100,"AC05 Actual projectile query excludes caster")
    return targetHum,ticks

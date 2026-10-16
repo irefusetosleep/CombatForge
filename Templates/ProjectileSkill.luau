@@ -2,11 +2,8 @@
 local RunService = game:GetService("RunService")
 local Debris = game:GetService("Debris")
 local Skill = {}
--- Edit these defaults in this Tool. All geometry and damage are server-owned.
+-- Advanced settings stay local. Edit shared damage/cooldown/range in Update Skills.
 Skill.Config = {
-	Damage = 20,
-	Cooldown = 0.75, -- seconds; at least 0.05
-	Range = 80, -- maximum travel in studs
 	ProjectileSpeed = 60, -- studs per second
 	ProjectileRadius = 0.5, -- swept spherical hitbox radius
 	ProjectileLifetime = 3, -- seconds; range may end flight earlier
@@ -16,6 +13,34 @@ Skill.Config = {
 }
 local function positive(value): boolean
 	return type(value) == "number" and value == value and value > 0 and value < math.huge
+end
+-- Common settings come only from this Tool's explicit shared config link.
+function Skill.GetConfig()
+	local function unavailable(reason)
+		warn("[CombatForge Template] " .. script.Parent.Name .. ": " .. reason .. ". Restore Skill.Config and its ModuleScript in ReplicatedStorage.CombatForge.Abilities; restart Play.")
+		return nil
+	end
+	local link = script:FindFirstChild("Config")
+	if not link or not link:IsA("ObjectValue") then return unavailable("missing or invalid Config ObjectValue") end
+	local module = link.Value
+	local storage = game:GetService("ReplicatedStorage")
+	local root = storage:FindFirstChild("CombatForge")
+	local abilities = if root and root:IsA("Folder") then root:FindFirstChild("Abilities") else nil
+	if not module or not module:IsA("ModuleScript") or not abilities or not abilities:IsA("Folder") or module.Parent ~= abilities then
+		return unavailable("linked config is missing, deleted or outside Abilities")
+	end
+	local ok, shared = pcall(require, module)
+	if not ok then return unavailable("config could not load: " .. tostring(shared)) end
+	if type(shared) ~= "table" or type(shared.Name) ~= "string" then return unavailable("config must return Name, Damage, Cooldown and Range") end
+	for _, key in { "Damage", "Cooldown", "Range" } do
+		local value = shared[key]
+		if type(value) ~= "number" or value ~= value or value < 0 or value >= math.huge or (key == "Range" and value == 0) then
+			return unavailable("invalid shared " .. key)
+		end
+	end
+	local config = table.clone(Skill.Config)
+	config.Damage = shared.Damage; config.Cooldown = shared.Cooldown; config.Range = shared.Range
+	return config
 end
 function Skill.Validate(): boolean
 	local config = Skill.Config
@@ -33,10 +58,9 @@ local function humanoidFrom(part: BasePart): Humanoid?
 	end
 	return nil
 end
-function Skill.Cast(caster: Model, aimPoint, isValid: () -> boolean)
+function Skill.Cast(caster: Model, aimPoint, isValid: () -> boolean, config)
 	assert(RunService:IsServer(), "Projectile damage must run on the server")
 	if not isValid() then return end
-	local config = Skill.Config
 	local root = caster:FindFirstChild("HumanoidRootPart") :: BasePart
 	-- Begin at the server character, so a nearby wall cannot be skipped by a muzzle offset.
 	local position = root.Position

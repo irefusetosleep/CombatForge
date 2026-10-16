@@ -47,12 +47,12 @@ table.insert(connections, remote.OnServerEvent:Connect(function(player, aimPoint
 	local humanoid = caster:FindFirstChildOfClass("Humanoid")
 	local root = caster:FindFirstChild("HumanoidRootPart")
 	if not caster:IsDescendantOf(workspace) or not humanoid or humanoid.Health <= 0 or not root or not root:IsA("BasePart") then return end
-	local config = Skill.Config
+	local config = Skill.GetConfig()
 	if type(config) ~= "table" then return end
 	for _, key in { "Damage", "Cooldown", "Range", "HitDelay" } do
 		if not finite(config[key]) or config[key] < 0 then return end
 	end
-	if config.Range <= 0 or config.Cooldown < 0.05 or config.HitDelay > 30 or type(config.AnimationId) ~= "string" then return end
+	if config.Range <= 0 or config.HitDelay > 30 or type(config.AnimationId) ~= "string" then return end
 	if config.AimMode ~= nil and config.AimMode ~= "Mouse" and config.AimMode ~= "Body" then return end
 	if config.AimMode == "Mouse" and not validVector(aimPoint) then return end
 	local settingsOK, validSettings = pcall(Skill.Validate)
@@ -94,7 +94,7 @@ table.insert(connections, remote.OnServerEvent:Connect(function(player, aimPoint
 	task.spawn(function()
 		if config.HitDelay > 0 then task.wait(config.HitDelay) end
 		local ok, failure = pcall(function()
-			if isValid() then Skill.Cast(caster, aimPoint, isValid) end
+			if isValid() then Skill.Cast(caster, aimPoint, isValid, config) end
 		end)
 		death:Disconnect()
 		if not ok then warn("[CombatForge Template] Attack failed: " .. tostring(failure)) end

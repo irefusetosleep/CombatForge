@@ -19,12 +19,40 @@ return function(sources)
   end}
   local parent = setmetatable({}, {__index = function(_, name) return name end})
   environment.script = environment.script or setmetatable({Parent = parent}, {__index = function(_, name) return name end})
-  environment.require = function(key) return assert(dependencies and dependencies[key], "Unmapped dependency " .. tostring(key)) end
+  environment.require = function(key)
+   if type(dependencies) == "function" then return dependencies(key) end
+   return assert(dependencies and dependencies[key], "Unmapped dependency " .. tostring(key))
+  end
   return compile(path, environment, override)
  end
  local templates = {}
+ local fixtures = {}
  local ok, failure = pcall(function()
   local parser = module("Plugin/AbilityConfig.luau")
+  -- Existing attack tests now get honest shared-config objects. The new paired
+  -- generation suite below separately consumes actual installer-created links.
+  local function linkedModule(path, services, dependencies, globals)
+   if path ~= "Templates/MeleeSkill.luau" and path ~= "Templates/ProjectileSkill.luau" then
+    return module(path, services, dependencies, globals)
+   end
+   local storage=Instance.new("Folder"); table.insert(fixtures,storage)
+   local root=Instance.new("Folder"); root.Name="CombatForge"; root.Parent=storage
+   local abilities=Instance.new("Folder"); abilities.Name="Abilities"; abilities.Parent=root
+   local shared=Instance.new("ModuleScript"); shared.Name="TestSkill"; shared.Parent=abilities
+   local common={Name="TestSkill",Damage=20,Cooldown=.75,Range=if path:find("Melee",1,true) then 6 else 80}
+   shared.Source=parser.serialize(common)
+   local scriptObject=Instance.new("ModuleScript"); scriptObject.Name="Skill"; scriptObject.Parent=root
+   local link=Instance.new("ObjectValue"); link.Name="Config"; link.Value=shared; link.Parent=scriptObject
+   local mapped={[shared]=common}
+   if path:find("Melee",1,true) then
+    local runtime=Instance.new("Folder"); runtime.Name="Runtime"; runtime.Parent=root
+    local hitbox=Instance.new("ModuleScript"); hitbox.Name="Hitbox"; hitbox.Parent=runtime
+    local _, supplied=next(dependencies); mapped[hitbox]=supplied
+   end
+   local actualServices=table.clone(services or {}); actualServices.ReplicatedStorage=storage
+   local actualGlobals=table.clone(globals or {}); actualGlobals.script=scriptObject
+   return module(path,actualServices,mapped,actualGlobals),common
+  end
   local theme = module("Plugin/Theme.luau")
   local colourPicker = module("Plugin/ColourPicker.luau")
   local function uiLoader()
@@ -75,18 +103,27 @@ return function(sources)
    end
   end
   table.insert(results, compile("Tests/TemplateInstaller.spec.luau")(function(services)
-   return module("Plugin/TemplateInstaller.luau", services)
+   return module("Plugin/TemplateInstaller.luau", services, {AbilityConfig=parser})
   end, assert(sources["Runtime/Hitbox.luau"]), templates))
   -- Runtime suites receive the same source loader; all callbacks/services are
   -- supplied by the spec, with real isolated Instances where they matter.
   if sources["Tests/TemplateRuntime.spec.luau"] then
-   table.insert(results, compile("Tests/TemplateRuntime.spec.luau")(module, sources))
+   table.insert(results, compile("Tests/TemplateRuntime.spec.luau")(linkedModule, sources))
   end
   if sources["Tests/TemplateWorld.spec.luau"] then
-   table.insert(results, compile("Tests/TemplateWorld.spec.luau")(module))
+   table.insert(results, compile("Tests/TemplateWorld.spec.luau")(linkedModule))
+  end
+  if sources["Tests/TemplateSharedConfig.spec.luau"] then
+   table.insert(results,compile("Tests/TemplateSharedConfig.spec.luau")(module,parser,templates,assert(sources["Runtime/Hitbox.luau"])))
+  end
+  for _, path in {"Tests/AbilityCreation.spec.luau","Tests/AbilityUpdate.spec.luau","Tests/AbilityDelete.spec.luau"} do
+   if sources[path] then table.insert(results,compile(path)(parser,function(services)
+    return module("Plugin/AbilityManager.luau",services,{AbilityConfig=parser})
+   end)) end
   end
  end)
  for _, template in templates do template:Destroy() end
+ for _, fixture in fixtures do fixture:Destroy() end
  assert(ok, failure)
  return table.concat(results, "\n")
 end

@@ -1,82 +1,31 @@
 # Current coordination state
 
-Task: WORKFLOW-PLANNER-NAME-03 — saved Planner dispatch label renamed to planner.
-Planner model remains gpt-6-astra / medium / fork_turns none. Small Edits updated
-only the active label in registry and overrides; coordinator reviewed it.
-
-Current-session limitation: native agent entries cannot be renamed or deleted
-with exposed tools. planner_astra is retired and was interrupted; the original
-planner path is still reserved (replacement spawn returned already exists).
-Do not resume the old default-model planner. For a new planning assignment,
-create a fresh Astra Medium agent with a unique internal handle if the saved
-planner label remains occupied; its user-facing role is Planner. Session-scoped
-run history may remain visible. No new feature task is assigned.
-
-Validation: JSON role name/taskName/model/effort/fork consistency and diff check.
-No plugin source, tests or installed plugin changed.
-
-## Previous workflow update and feature delivery
-
-Task: WORKFLOW-MODELS-02 — completed model and simple-edit routing amendment.
-Planner: gpt-6-astra, medium reasoning; new native planner_astra instance created.
-Small Edits: gpt-6.1-sol, inherited reasoning; native small_edits instance created.
-Coordinator, Coder, Tester and Reviewer defaults are preserved. No active tasks.
-
-Planner finalized AC-01 through AC-05; Small Edits implemented the assigned
-workflow files, followed by coordinator diff review and targeted guide correction.
-The original TEAM-WORKFLOW.md is unchanged. Later amendments live in
-WORKFLOW-OVERRIDES.md and take precedence only for specified rules.
-
-Simple, clear, low-risk changes route to Small Edits plus coordinator checks.
-Substantial, ambiguous, security, network and architectural work retains the full
-Planner/Coder/Tester/Reviewer pipeline. Session handles are recreated as needed;
-model overrides use fresh contexts. Existing concurrency limits are unchanged.
-
-Coordinator checks: exact JSON model/effort/fork settings, unchanged other-role
-configuration and retired IDs, baseline prompt SHA256, documentation-only scope,
-and whitespace validation. Plugin code was not changed, built or reinstalled.
-
-## Previous feature delivery
-
-Task: TEMPLATE-SKILLS-01 — delivered working basic melee/projectile Tool generation.
-Specification: coordination/specs/TEMPLATE-SKILLS-01.md; Open questions: none.
-User decisions: both functional templates; optional blank animation ID skips;
-projectile Mouse Aim / Body Aim slider below creation button, saved per new Tool.
-
-Status: Implementation locally installed with backup and matching package hash.
-Real Planner, Coder, Tester and read-only Reviewer participated. No active tasks.
+Task: TEMPLATE-CONFIGS-02 — delivered corresponding Abilities configs for templates.
+Specification: coordination/specs/TEMPLATE-CONFIGS-02.md; Open questions: none.
+Planner used GPT-6 Astra Medium. Real Coder, Tester and read-only Reviewer ran.
+No active assignments. Installed with backup and verified package hash.
 Reviewer verdict: No blocking findings; verification incomplete.
-AC-01 through AC-07 implemented/reviewed, with automated evidence below; native
-integration portions of AC-06/08 remain not run. No publication or push requested.
 
-Actual coordinator execution in CombatForge Testing passed 247 assertions:
-12 template menu, 12 existing menu/form, 23 skill-deletion UI, 11 startup,
-30 existing Example, 57 template installer, 72 template runtime, 30 real
-WorldModel spatial-query checks (injected clock/Heartbeat). Fixtures cleaned up.
-Rojo build, package source/structure/disabled-state validation and diff check passed.
-These include ownership/cooldown/delay, optional animation lifecycle via honest
-mocks, both aim modes, damage dedupe, thin-wall sweep blocking, initial overlap,
-range/lifetime/teardown cleanup and installer rollback/preservation.
+Both new template kinds create a unique supported four-field ModuleScript under
+ReplicatedStorage.CombatForge.Abilities and a nested Skill.Config ObjectValue link.
+Damage, Cooldown and Range are consumed by the generated Tool; advanced settings
+stay in its local Skill.Config Lua table. Config renames preserve linkage; deleted,
+invalid or missing links fail closed. Edits apply next Play under require caching.
+New Tool/config/dependency bundle uses one history recording; failures roll back.
+Existing generated Tools and configs were not migrated or overwritten.
 
-Not run: rendered UI/slider, actual Tool input/multiplayer remote dispatch,
-owned-animation playback and native Studio undo/redo. Exact manual steps are
-in docs/TemplateSkills.md. Do not describe this delivery as fully verified.
+Actual coordinator Studio execution: 536 assertions passed:
+12 template menu, 12 menu/form, 23 deletion UI, 11 startup, 30 Example,
+57 template installer, 75 template runtime, 30 real WorldModel spatial,
+166 shared-config/generated-source integration, 46 creation, 25 update, 49 deletion.
+Real spatial queries used injected timing; other services/history were isolated.
+Final generated-source checks proved shared melee37/0/12 values and local geometry,
+plus projectile Range7/20 and Damage13 behavior. Temporary fixtures cleaned up.
+Rojo build, package validation and diff checks passed. AC-01 through AC-06 have
+automated support; do not call native Studio integration fully verified.
 
-Delivery paths: Plugin/TemplateInstaller.luau, Templates/*, UI/Main wiring,
-package manifest/checker and docs/TemplateSkills.md. Settings are local Skill.Config
-rather than Update Skills configs. Existing example files were left intact.
-
-## Accepted feature history
-
-SKILL-DELETE-08 — accepted; latest feature commit 5833e53.
-Red delete button/white trash icon on Update Skills rows; named Cancel/Delete
-confirmation; exact target unparented in one history recording, preserving subtree.
-AbilityManager.delete(module: ModuleScript, expectedName: string) returns
-(boolean, string), validating path/name and Edit mode; Cancel never mutates and
-stale targets fail safely. No active feature assignments.
-Evidence: 12 menu/form, 23 deletion UI and 49 isolated backend assertions passed;
-Rojo build, package validation and git diff --check passed for that delivery.
-Installed locally with backup and verified hash.
-Limits: Native Ctrl+Z/redo and rendered UI not exercised; undo transitions used
-an isolated history service. Existing place skills were not modified. These are
-historical checks, not tests rerun or expanded by the workflow migration.
+Not run: native StarterPack player cloning, actual Tool input/networked Play,
+owned-animation playback, rendered UI and native Undo/Redo. Exact manual steps
+are documented in docs/TemplateSkills.md. Generate fresh templates after plugin
+reload to receive linked configs; preserve/custom-port older Tools as needed.
+No publication or push. Previous template delivery: 2da9d52.

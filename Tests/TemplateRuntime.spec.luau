@@ -33,8 +33,9 @@ return function(module)
  local remote={OnServerEvent=signal()}
  local tool={Parent=caster, Enabled=true, Unequipped=signal(), AncestryChanged=signal(), Destroying=signal(), WaitForChild=function(_,name) return name=="Skill" and "Skill" or remote end}
  local scriptObject={Parent=tool, Destroying=signal()}
- local config={Damage=20, Cooldown=0.75, Range=6, HitDelay=0, AnimationId=""}
- local skill={Config=config, Validate=function() return true end, Cast=function(_, _, valid) check(valid(),"AC04 Cast receives current authorization"); casts+=1 end}
+ local shared={Damage=20,Cooldown=.75,Range=6}
+ local config={HitDelay=0, AnimationId=""}
+ local skill={Config=config, GetConfig=function() local result=table.clone(config); for key,value in shared do result[key]=value end; return result end, Validate=function() return true end, Cast=function(_, _, valid) check(valid(),"AC04 Cast receives current authorization"); casts+=1 end}
  module("Templates/ToolServer.server.luau", {}, {Skill=skill}, {
   script=scriptObject, workspace=world, os={clock=function() return now end},
   task={spawn=function(callback) table.insert(jobs,callback) end, wait=function(delay) waits+=1; check(delay==config.HitDelay,"AC03 Configured delay") end,
@@ -55,9 +56,9 @@ return function(module)
  humanoid.Health=0; fire(); humanoid.Health=100
  hasRoot=false; fire(); hasRoot=true
  drain(); check(casts==1,"AC04 Disabled/unauthorized/dead/missing-root requests do not cast")
- now+=1; config.Damage=0/0; fire(); config.Damage=20
- config.Range=math.huge; fire(); config.Range=6
- config.Cooldown=-1; fire(); config.Cooldown=.75
+ now+=1; shared.Damage=0/0; fire(); shared.Damage=20
+ shared.Range=math.huge; fire(); shared.Range=6
+ shared.Cooldown=-1; fire(); shared.Cooldown=.75
  config.AimMode="Mouse"
  for _, aim in {"wrong", Vector3.new(0/0,0,0), Vector3.new(math.huge,0,0)} do fire(aim) end
  drain(); check(casts==1,"AC04/05 Nonfinite settings and malformed aim rejected")
@@ -81,6 +82,11 @@ return function(module)
  check(tracks[3].destroys==1,"AC03 Unequip cleans playing animation")
  now+=1; fire(); drain(); delayed[#delayed]()
  check(tracks[4].destroys==1,"AC03 Fallback cleans animation if completion never arrives")
+ shared.Cooldown=0; config.AnimationId=""; now+=1
+ local beforeZero=casts
+ fire(); fire(); drain()
+ check(casts==beforeZero+2,"TEMPLATE-CONFIGS AC03 Zero shared cooldown permits consecutive activations")
+ shared.Cooldown=.75; config.AnimationId="rbxassetid://1"
  local beforeDestroyCasts=casts
  now+=1; fire(); tool.Destroying:Fire(); drain(); now+=1; fire(); drain()
  check(casts==beforeDestroyCasts and tracks[5].destroys==1,"AC04 Tool teardown cancels pending, cleans animation and disconnects future requests")
@@ -118,10 +124,10 @@ return function(module)
   end}
   local path={WaitForChild=function(self) return self end}
   local melee=module("Templates/MeleeSkill.luau", {RunService={IsServer=function() return true end}, ReplicatedStorage=path}, {[path]=hitbox})
-  melee.Cast(casterModel,nil,function() return true end)
+  melee.Cast(casterModel,nil,function() return true end, melee.GetConfig())
   check(targetHum.Health==80 and selfHum.Health==100 and deadHum.Health==0,"AC04 Living targets damaged once; self/dead excluded")
   check(cleaned==1,"AC04 Detector destroyed after scan")
-  melee.Cast(casterModel,nil,function() return false end)
+  melee.Cast(casterModel,nil,function() return false end, melee.GetConfig())
   check(scans==1,"AC04 Invalidated activation skips scan")
   melee.Config.HitboxWidth=0/0; check(not melee.Validate(),"AC04 Invalid geometry rejected")
 
@@ -135,7 +141,7 @@ return function(module)
    check(params.FilterDescendantsInstances[1]==casterModel,"AC05 Swept query excludes caster")
    return hit
   end}
-  local projectile=module("Templates/ProjectileSkill.luau", {
+  local projectile,projectileShared=module("Templates/ProjectileSkill.luau", {
    RunService={IsServer=function() return true end, Heartbeat={Wait=function() steps+=1; assert(steps<50,"Unbounded projectile"); if invalidateAfterWait then valid=false end; return .1 end}},
    Debris={AddItem=function(_,_,lifetime) check(lifetime>0 and lifetime<math.huge,"AC05 Finite fallback cleanup") end},
   }, nil, {workspace=fakeWorld,
@@ -145,40 +151,40 @@ return function(module)
    end},
   })
   local function reset() sweep={}; steps=0; valid=true; initial={}; hit=nil; invalidateAfterWait=false; queryFails=false end
-  projectile.Config.AimMode="Body"; projectile.Config.Range=10
-  projectile.Cast(casterModel, Vector3.new(999,0,0),function() return valid end)
+  projectile.Config.AimMode="Body"; projectileShared.Range=10
+  projectile.Cast(casterModel, Vector3.new(999,0,0),function() return valid end, projectile.GetConfig())
   check(#sweep==2 and sweep[1].origin==rootPart.Position,"AC05 Body origin is server root")
   check(sweep[1].delta.Unit==rootPart.CFrame.LookVector and math.abs(sweep[1].delta.Magnitude+sweep[2].delta.Magnitude-10)<.001,"AC05 Body direction ignores client and stops at range")
   check(removed==#visuals,"AC05 Range completion destroys visual")
   reset(); projectile.Config.AimMode="Mouse"
-  projectile.Cast(casterModel,rootPart.Position+Vector3.new(100,0,0),function() return true end)
+  projectile.Cast(casterModel,rootPart.Position+Vector3.new(100,0,0),function() return true end, projectile.GetConfig())
   check(sweep[1].delta.Unit==Vector3.xAxis,"AC05 Mouse aim computes direction from server origin")
   reset(); local before=#visuals
-  projectile.Cast(casterModel,rootPart.Position,function() return true end)
+  projectile.Cast(casterModel,rootPart.Position,function() return true end, projectile.GetConfig())
   check(#visuals==before and #sweep==0,"AC05 Degenerate mouse aim safe without resources")
   reset(); hit={Instance=victimPart,Position=rootPart.Position+Vector3.new(2,0,0)}
-  projectile.Cast(casterModel,rootPart.Position+Vector3.xAxis*100,function() return true end)
+  projectile.Cast(casterModel,rootPart.Position+Vector3.xAxis*100,function() return true end, projectile.GetConfig())
   check(#sweep==1 and targetHum.Health==60,"AC05 First swept impact damages once and terminates")
   reset(); hit={Instance=rootPart,Position=rootPart.Position}
-  projectile.Cast(casterModel,rootPart.Position+Vector3.xAxis*100,function() return true end)
+  projectile.Cast(casterModel,rootPart.Position+Vector3.xAxis*100,function() return true end, projectile.GetConfig())
   check(#sweep==1 and selfHum.Health==100,"AC05 Caster cannot receive projectile damage")
   reset(); hit={Instance=Instance.new("Part"),Position=rootPart.Position+Vector3.xAxis}
   local wall=hit.Instance
-  projectile.Cast(casterModel,rootPart.Position+Vector3.xAxis*100,function() return true end)
+  projectile.Cast(casterModel,rootPart.Position+Vector3.xAxis*100,function() return true end, projectile.GetConfig())
   wall:Destroy()
   check(#sweep==1 and targetHum.Health==60,"AC05 World collision terminates without target damage")
   reset(); initial={victimPart}
-  projectile.Cast(casterModel,rootPart.Position+Vector3.xAxis*100,function() return true end)
+  projectile.Cast(casterModel,rootPart.Position+Vector3.xAxis*100,function() return true end, projectile.GetConfig())
   check(#sweep==0 and targetHum.Health==40,"AC05 Initial overlap cannot tunnel past target")
   reset(); invalidateAfterWait=true
-  projectile.Cast(casterModel,rootPart.Position+Vector3.xAxis*100,function() return valid end)
+  projectile.Cast(casterModel,rootPart.Position+Vector3.xAxis*100,function() return valid end, projectile.GetConfig())
   check(#sweep==0 and removed==#visuals,"AC05 Teardown before travel prevents query and cleans visual")
-  reset(); projectile.Config.Range=1000; projectile.Config.ProjectileLifetime=.15
-  projectile.Cast(casterModel,rootPart.Position+Vector3.xAxis*100,function() return true end)
+  reset(); projectileShared.Range=1000; projectile.Config.ProjectileLifetime=.15
+  projectile.Cast(casterModel,rootPart.Position+Vector3.xAxis*100,function() return true end, projectile.GetConfig())
   local distance=0; for _, segment in sweep do distance+=segment.delta.Magnitude end
   check(steps==2 and math.abs(distance-9)<.001,"AC05 Lifetime caps final segment travel")
   reset(); queryFails=true
-  check(not pcall(projectile.Cast,casterModel,rootPart.Position+Vector3.xAxis*100,function() return true end) and removed==#visuals,"AC05 Query failure cleans visual before propagation")
+  check(not pcall(projectile.Cast,casterModel,rootPart.Position+Vector3.xAxis*100,function() return true end, projectile.GetConfig()) and removed==#visuals,"AC05 Query failure cleans visual before propagation")
   projectile.Config.ProjectileSpeed=math.huge; check(not projectile.Validate(),"AC05 Infinite speed rejected")
  end)
  casterModel:Destroy(); victim:Destroy(); dead:Destroy()
