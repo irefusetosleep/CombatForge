@@ -121,6 +121,55 @@ function AbilityManager.list(): ({ ModuleScript }, string?)
 	return result, folderError
 end
 
+function AbilityManager.delete(module: ModuleScript, expectedName: string): (boolean, string)
+	local function checkTarget(): (Folder?, string?)
+		if RunService:IsRunning() then return nil, "Stop the playtest before deleting a skill." end
+		if typeof(module) ~= "Instance" or not module:IsA("ModuleScript") then
+			return nil, "Select a ModuleScript skill to delete."
+		end
+		local folder, folderError = getAbilities()
+		if not folder or module.Parent ~= folder or module.Name ~= expectedName then
+			return nil, folderError or "This skill was moved, deleted or renamed. Refresh the list and confirm again."
+		end
+		return folder, nil
+	end
+	local originalParent, targetError = checkTarget()
+	if not originalParent then return false, targetError or "Could not find this skill." end
+	local recording: string? = nil
+	local detached = false
+	local success, failure = pcall(function()
+		recording = ChangeHistoryService:TryBeginRecording("CombatForge.DeleteAbility", "Delete skill " .. expectedName)
+		if not recording then error("Studio could not start an undo recording. Try again.", 0) end
+		local latestParent, latestError = checkTarget()
+		if latestParent ~= originalParent then error(latestError or "The skill folder changed. Confirm again.", 0) end
+		-- Unparent, never Destroy: history retains the exact instance and its complete
+		-- subtree, including non-Archivable children. A failed commit can reparent it.
+		-- No yielding or source evaluation is needed in this transaction.
+		module.Parent = nil
+		detached = true
+		ChangeHistoryService:FinishRecording(recording :: string, Enum.FinishRecordingOperation.Commit)
+		recording = nil
+	end)
+	if not success then
+		if recording then
+			local cancelled, cancelError = pcall(function()
+				ChangeHistoryService:FinishRecording(recording :: string, Enum.FinishRecordingOperation.Cancel)
+			end)
+			if not cancelled then warn("[CombatForge] Could not cancel deletion: " .. tostring(cancelError)) end
+		end
+		-- If cancellation itself fails (or fails to restore), the instance is still
+		-- writable. Restore only our detached target; never overwrite another edit.
+		if detached and module.Parent == nil then
+			local restored, restoreError = pcall(function() module.Parent = originalParent end)
+			if not restored then
+				return false, "Could not delete or restore the skill. " .. tostring(failure) .. " Restore failed: " .. tostring(restoreError)
+			end
+		end
+		return false, "Could not delete the skill. " .. tostring(failure)
+	end
+	return true, "Deleted " .. expectedName .. ". Undo is available. Save your place to keep this change."
+end
+
 function AbilityManager.read(module: ModuleScript): (Snapshot?, string?)
 	local folder, folderError = getAbilities()
 	if not folder or module.Parent ~= folder then return nil, folderError or "This skill was moved or deleted. Refresh the list." end

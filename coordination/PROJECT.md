@@ -9,6 +9,8 @@ no remote. Builds and plugin backups are ignored. Local installed plugin:
 
 - UI/theme/editor: `Plugin/UI.luau`, `Theme.luau`, `ColourPicker.luau`,
   `AbilityConfig.luau`, `AbilityManager.luau`.
+  Update Skills includes per-skill trash buttons, named delete confirmation and
+  change-history deletion supporting Studio undo; Refresh reloads restored skills.
 - Plugin startup and package: `Plugin/Main.server.luau`, `default.project.json`,
   `scripts/Test-PluginPackage.ps1`, `scripts/Install-Plugin.ps1`.
 - Runtime hitboxes: `Runtime/Hitbox.luau`, `docs/Hitboxes.md`.

@@ -20,6 +20,7 @@ function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), 
  root.Parent = widget
  local green = palette.success
  local red = palette.error
+ local destructiveFill = Color3.fromRGB(190, 45, 55)
  local busy = false
  local dummyRigType = Enum.HumanoidRigType.R6
  local order = 0
@@ -64,7 +65,7 @@ function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), 
   place(item, name)
   return item
  end
- local function button(name: string, text: string, action: () -> (), primary: boolean?): TextButton
+ local function button(name: string, text: string, action: () -> (), primary: boolean?, parent: GuiObject?): TextButton
   local item = Instance.new("TextButton")
   item.Size = UDim2.new(1, -8, 0, 42)
   item.BackgroundColor3 = if primary then palette.accent else palette.surface
@@ -74,7 +75,12 @@ function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), 
   item.TextSize = 14
   item.TextTruncate = Enum.TextTruncate.AtEnd
   item.Text = text
-  place(item, name)
+  if parent then
+   item.Name = name
+   item.Parent = parent
+  else
+   place(item, name)
+  end
   item.Activated:Connect(function() if not busy then action() end end)
   return item
  end
@@ -99,7 +105,7 @@ function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), 
   return input
  end
  local showMenu: () -> ()
- local showList: () -> ()
+ local showList: (string?) -> ()
  local showForm: (AbilityManager.Snapshot?) -> ()
  local showSettings: (string?) -> ()
  showSettings = function(message)
@@ -255,27 +261,86 @@ function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), 
   end, true)
   status = label("Status", if snapshot then "Edit any field, then save your changes." else "Creates a ModuleScript in ReplicatedStorage.CombatForge.Abilities.", 14)
  end
- showList = function()
+ local function showDelete(module: ModuleScript, expectedName: string)
+  reset()
+  label("Heading", "Delete " .. expectedName .. "?", 24)
+  label("DeleteHelp", "This removes the skill from CombatForge. You can undo the deletion with Ctrl+Z.", 14)
+  local resolved = false
+  local status: TextLabel
+  button("CancelDelete", "Cancel", function()
+   if resolved then return end
+   resolved = true
+   showList()
+  end)
+  local confirm = button("ConfirmDelete", "Delete", function()
+   if resolved then return end
+   resolved = true
+   busy = true
+   status.Text = "Deleting " .. expectedName .. "…"
+   local ok, deleted, message = pcall(manager.delete, module, expectedName)
+   busy = false
+   if ok and deleted then
+    showList(message)
+   else
+    resolved = false
+    status.Text = if ok then message else "Could not delete skill: " .. tostring(deleted)
+    status.TextColor3 = red
+   end
+  end)
+  confirm.BackgroundColor3 = destructiveFill
+  confirm.TextColor3 = Color3.new(1, 1, 1)
+  status = label("DeleteStatus", "Choose Delete to confirm, or Cancel to keep this skill.", 14)
+ end
+ showList = function(message)
   reset()
   label("Heading", "Update Skills", 24)
   button("Back", "Main menu", showMenu)
   button("Refresh", "Refresh list", showList)
-  local status = label("Status", "Select a skill to edit its settings.", 14)
+  local status = label("Status", message or "Select a skill to edit its settings.", 14)
+  if message then status.TextColor3 = green end
   local skills, listError = manager.list()
   if listError then status.Text = listError; status.TextColor3 = red; return end
   if #skills == 0 then
-   status.Text = "No CombatForge skills yet. Create your first skill from the main menu."
+   status.Text = (if message then message .. " " else "") .. "No CombatForge skills yet. Create your first skill from the main menu."
    return
   end
   for index, module in skills do
-   button("Skill" .. index, module.Name, function()
+   local row = Instance.new("Frame")
+   row.Size = UDim2.new(1, -8, 0, 42)
+   row.BackgroundTransparency = 1
+   place(row, "SkillRow" .. index)
+   local open = button("Skill" .. index, module.Name, function()
     local snapshot, readError = manager.read(module)
     if snapshot then showForm(snapshot) else
      status.Text = readError or "Could not open this skill."
      status.TextColor3 = red
      root.CanvasPosition = Vector2.zero
     end
-   end)
+   end, false, row)
+   open.Size = UDim2.new(1, -50, 1, 0)
+   local trash = button("DeleteSkill" .. index, "", function()
+    showDelete(module, module.Name)
+   end, false, row)
+   trash.Size = UDim2.fromOffset(42, 42)
+   trash.Position = UDim2.new(1, -42, 0, 0)
+   trash.BackgroundColor3 = destructiveFill
+   local function iconPart(name: string, x: number, y: number, width: number, height: number): Frame
+    local part = Instance.new("Frame")
+    part.Name = name
+    part.Position = UDim2.fromOffset(x, y)
+    part.Size = UDim2.fromOffset(width, height)
+    part.BackgroundColor3 = Color3.new(1, 1, 1)
+    part.BorderSizePixel = 0
+    part.Parent = trash
+    return part
+   end
+   iconPart("Handle", 18, 10, 6, 2)
+   iconPart("Lid", 12, 13, 18, 2)
+   iconPart("LeftSide", 14, 17, 2, 13)
+   iconPart("RightSide", 26, 17, 2, 13)
+   iconPart("Base", 14, 30, 14, 2)
+   iconPart("LeftSlot", 18, 18, 2, 10)
+   iconPart("RightSlot", 22, 18, 2, 10)
   end
  end
  showMenu = function()
