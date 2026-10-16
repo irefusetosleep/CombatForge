@@ -14,7 +14,7 @@ local TemplateInstaller = require(script.TemplateInstaller)
 local DummySpawner = require(script.DummySpawner)
 local toolbar = plugin:CreateToolbar("CombatForge")
 local icon = "rbxasset://textures/sparkle.png"
-local logo = "rbxassetid://95933009796699"
+local logo = "rbxassetid://118596951641724"
 local button = toolbar:CreateButton("CombatForge.Toggle", "Open or close CombatForge", icon, "CombatForge")
 button.ClickableWhenViewportHidden = true
 -- A shortcut action provides a second entry point if Studio hides the ribbon button.

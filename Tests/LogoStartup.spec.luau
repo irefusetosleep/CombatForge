@@ -14,7 +14,7 @@ return function(loadMain)
   end}
  end
  local fallback="rbxasset://textures/sparkle.png"
- local logo="rbxassetid://95933009796699"
+ local logo="rbxassetid://118596951641724"
  for _,mode in {"Failure","Success","throw","unloadDuring","unloadPending"} do
   local click,trigger,unload,changed=signal(),signal(),signal(),signal()
   local jobs={}

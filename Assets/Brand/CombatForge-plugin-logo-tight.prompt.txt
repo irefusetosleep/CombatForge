@@ -1,0 +1,1 @@
+Built-in imagegen edit of CombatForge-plugin-logo.png. Tightly crop empty transparent margins; preserve cyan/orange hexagonal CF crossed swords and anvil artwork; fill canvas height with only minimal padding. Transparent background.
