@@ -13,7 +13,8 @@ local ExampleInstaller = require(script.ExampleInstaller)
 local TemplateInstaller = require(script.TemplateInstaller)
 local DummySpawner = require(script.DummySpawner)
 local toolbar = plugin:CreateToolbar("CombatForge")
-local icon = "rbxassetid://95933009796699"
+local icon = "rbxasset://textures/sparkle.png"
+local logo = "rbxassetid://95933009796699"
 local button = toolbar:CreateButton("CombatForge.Toggle", "Open or close CombatForge", icon, "CombatForge")
 button.ClickableWhenViewportHidden = true
 -- A shortcut action provides a second entry point if Studio hides the ribbon button.
@@ -22,12 +23,17 @@ local openAction = plugin:CreatePluginAction("CombatForge.OpenEditor", "Open Com
 local connections: { RBXScriptConnection } = {}
 local widget: DockWidgetPluginGui? = nil
 local unloaded = false
+local iconTask: thread? = nil
 
 local function cleanup()
 	if unloaded then
 		return
 	end
 	unloaded = true
+	if iconTask then
+		pcall(task.cancel, iconTask)
+		iconTask = nil
+	end
 	for _, connection in connections do
 		connection:Disconnect()
 	end
@@ -79,4 +85,21 @@ end)
 if not success then
 	cleanup()
 	warn("[CombatForge] Could not start the plugin: " .. tostring(failure))
+end
+
+-- Optional branding must never delay or prevent the editor from opening.
+if success and not unloaded then
+	pcall(function()
+		iconTask = task.defer(function()
+			pcall(function()
+				if unloaded then return end
+				local loaded = false
+				game:GetService("ContentProvider"):PreloadAsync({ logo }, function(_, status)
+					if status == Enum.AssetFetchStatus.Success then loaded = true end
+				end)
+				if loaded and not unloaded then button.Icon = logo end
+			end)
+			iconTask = nil
+		end)
+	end)
 end
