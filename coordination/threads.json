@@ -27,10 +27,10 @@
   "modelPolicy": "Do not change configured model or reasoning settings.",
   "deliveryPolicy": "Prior authorization for local revision installation is separate from publishing. Do not publish, deploy or push without an explicit user request.",
   "retiredArchiveReferences": [
-    {"threadId": "01a1412f-f7cf-7d92-9fda-905fbe554a41", "hostId": "local", "title": "CombatForge Coordinator", "archiveStatus": "pending-coordinator-archival"},
-    {"threadId": "01a14135-8c09-7bf2-a3db-9a7f125dcec9", "hostId": "local", "title": "CombatForge Worker - Edits", "archiveStatus": "pending-coordinator-archival"},
-    {"threadId": "01a14130-2717-76c0-b029-86d701bd5720", "hostId": "local", "title": "CombatForge Worker - Plugin UI", "archiveStatus": "pending-coordinator-archival"},
-    {"threadId": "01a14130-49e2-7ca2-be1f-6d6f75109357", "hostId": "local", "title": "CombatForge Worker - Runtime", "archiveStatus": "pending-coordinator-archival"}
+    {"threadId": "01a1412f-f7cf-7d92-9fda-905fbe554a41", "hostId": "local", "title": "CombatForge Coordinator", "archiveStatus": "archived"},
+    {"threadId": "01a14135-8c09-7bf2-a3db-9a7f125dcec9", "hostId": "local", "title": "CombatForge Worker - Edits", "archiveStatus": "archived"},
+    {"threadId": "01a14130-2717-76c0-b029-86d701bd5720", "hostId": "local", "title": "CombatForge Worker - Plugin UI", "archiveStatus": "archived"},
+    {"threadId": "01a14130-49e2-7ca2-be1f-6d6f75109357", "hostId": "local", "title": "CombatForge Worker - Runtime", "archiveStatus": "archived"}
   ],
   "retirementPolicy": "Archive these four recoverable chats only after workflow migration checks pass and changes are committed. Retired IDs are archive references only, not assignment targets; archive does not delete history."
 }

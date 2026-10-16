@@ -10,15 +10,16 @@ Status: Accepted after real Planner specification, Coder implementation, indepen
 Tester validation and strictly read-only Reviewer review. AC-01 through AC-07
 passed. Tester verified prompt SHA256 identity, valid registry, existing references,
 retired ID continuity, preserved context, documentation-only scope and diff check.
-Reviewer verdict: Approved based on available evidence. AC-08 delivery is pending
-this migration commit and recoverable archival of the four old chats. No
+Reviewer verdict: Approved based on available evidence. AC-08 delivered: migration
+committed as 3637e33 and all four retired chat archival calls confirmed success.
+Old chat history remains recoverable; this chat is the coordinator. No
 production/test code changes, build, installation or live Studio mutation occurred.
 
 AC scope: replace persistent chat routing with native roles; enforce permissions,
 clarified AC specifications, staged handoffs, evidence and review reporting;
 preserve authoritative user prompt verbatim in coordination/TEAM-WORKFLOW.md.
-Old chats are retired references with pending coordinator archival, after checks
-pass and migration is committed; archival preserves recoverable history.
+Old chats are archived references only, following verification and the migration
+commit; archival preserves recoverable history. No feature has been assigned.
 
 ## Accepted feature history
 
