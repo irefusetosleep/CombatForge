@@ -7,30 +7,95 @@
     "threadId": "01a13c4a-4aea-7090-86c0-4e0e20178ff0",
     "hostId": "local",
     "entryPoint": "current chat",
-    "responsibilities": ["assignments", "file ownership", "integration", "final validation", "local installation", "Git commits"]
+    "responsibilities": [
+      "assignments",
+      "file ownership",
+      "integration",
+      "final validation",
+      "local installation",
+      "Git commits"
+    ]
   },
   "roleLifecycle": "Native subagent handles are session-scoped, not durable app thread IDs. Persist role definitions here; recreate agents per session as needed. No persistent role sidebar chats are required.",
   "fallback": "If real subagents are unavailable, disclose this and run separate sequential role stages. Never claim independent agents ran.",
   "concurrency": {
     "maxActiveIncludingCoordinator": 4,
     "maxActiveSubagents": 3,
-    "policy": "Stage Planner, Coder, Tester and Reviewer within host limits. Parallelize only independent work with exclusive file ownership; normally Coder plus Tester preparation."
+    "policy": "Stage the five specialist definitions Planner, Coder, Tester, Reviewer and Small Edits within unchanged host limits. Parallelize only independent work with exclusive file ownership; normally Coder plus Tester preparation."
   },
   "roles": [
-    {"name": "Planner", "kind": "native-subagent", "owns": "planning material and clarified specification", "restriction": "No implementation or test code edits"},
-    {"name": "Coder", "kind": "native-subagent", "owns": "production code", "restriction": "May read tests; must not weaken, delete or rewrite tests to pass"},
-    {"name": "Tester", "kind": "native-subagent", "owns": "tests, fixtures and test-specific helpers", "restriction": "No production fixes"},
-    {"name": "Reviewer", "kind": "native-subagent", "owns": "read-only recommendations", "restriction": "Strictly read-only: no file changes or commands that modify the tree or generate artifacts"}
+    {
+      "name": "Planner",
+      "kind": "native-subagent",
+      "owns": "planning material and clarified specification",
+      "restriction": "No implementation or test code edits",
+      "taskName": "planner_astra",
+      "model": "gpt-6-astra",
+      "reasoning_effort": "medium",
+      "fork_turns": "none"
+    },
+    {
+      "name": "Coder",
+      "kind": "native-subagent",
+      "owns": "production code",
+      "restriction": "May read tests; must not weaken, delete or rewrite tests to pass"
+    },
+    {
+      "name": "Tester",
+      "kind": "native-subagent",
+      "owns": "tests, fixtures and test-specific helpers",
+      "restriction": "No production fixes"
+    },
+    {
+      "name": "Reviewer",
+      "kind": "native-subagent",
+      "owns": "read-only recommendations",
+      "restriction": "Strictly read-only: no file changes or commands that modify the tree or generate artifacts"
+    },
+    {
+      "name": "Small Edits",
+      "kind": "native-subagent",
+      "taskName": "small_edits",
+      "model": "gpt-6.1-sol",
+      "fork_turns": "none",
+      "owns": "assigned compact, clearly scoped, low-risk production edits; coordinator reviews and validates",
+      "restriction": "May read tests; must not weaken, delete or rewrite tests to pass. No spawning agents, commits, installation or live Studio mutation. WORKFLOW-MODELS-02 exception: only the four assigned workflow documentation/configuration files.",
+      "reasoningPolicy": "Omit the reasoning override; inherit the normal harness default."
+    }
   ],
   "authoritativeInstructions": "coordination/TEAM-WORKFLOW.md",
   "operatingGuide": "docs/AgentWorkflow.md",
-  "modelPolicy": "Do not change configured model or reasoning settings.",
+  "modelPolicy": "Explicit user choices only: Planner gpt-6-astra/medium and Small Edits gpt-6.1-sol with no reasoning override; both fork_turns none. Coordinator, Coder, Tester and Reviewer configured defaults and global settings remain unchanged. Report unavailable requested models; never silently substitute.",
   "deliveryPolicy": "Prior authorization for local revision installation is separate from publishing. Do not publish, deploy or push without an explicit user request.",
   "retiredArchiveReferences": [
-    {"threadId": "01a1412f-f7cf-7d92-9fda-905fbe554a41", "hostId": "local", "title": "CombatForge Coordinator", "archiveStatus": "archived"},
-    {"threadId": "01a14135-8c09-7bf2-a3db-9a7f125dcec9", "hostId": "local", "title": "CombatForge Worker - Edits", "archiveStatus": "archived"},
-    {"threadId": "01a14130-2717-76c0-b029-86d701bd5720", "hostId": "local", "title": "CombatForge Worker - Plugin UI", "archiveStatus": "archived"},
-    {"threadId": "01a14130-49e2-7ca2-be1f-6d6f75109357", "hostId": "local", "title": "CombatForge Worker - Runtime", "archiveStatus": "archived"}
+    {
+      "threadId": "01a1412f-f7cf-7d92-9fda-905fbe554a41",
+      "hostId": "local",
+      "title": "CombatForge Coordinator",
+      "archiveStatus": "archived"
+    },
+    {
+      "threadId": "01a14135-8c09-7bf2-a3db-9a7f125dcec9",
+      "hostId": "local",
+      "title": "CombatForge Worker - Edits",
+      "archiveStatus": "archived"
+    },
+    {
+      "threadId": "01a14130-2717-76c0-b029-86d701bd5720",
+      "hostId": "local",
+      "title": "CombatForge Worker - Plugin UI",
+      "archiveStatus": "archived"
+    },
+    {
+      "threadId": "01a14130-49e2-7ca2-be1f-6d6f75109357",
+      "hostId": "local",
+      "title": "CombatForge Worker - Runtime",
+      "archiveStatus": "archived"
+    }
   ],
-  "retirementPolicy": "Archive these four recoverable chats only after workflow migration checks pass and changes are committed. Retired IDs are archive references only, not assignment targets; archive does not delete history."
+  "retirementPolicy": "Archive these four recoverable chats only after workflow migration checks pass and changes are committed. Retired IDs are archive references only, not assignment targets; archive does not delete history.",
+  "workflowOverrides": "coordination/WORKFLOW-OVERRIDES.md",
+  "instructionPrecedence": "Later user amendments in workflowOverrides take precedence over conflicting original authoritativeInstructions; preserve TEAM-WORKFLOW.md verbatim and retain all unaffected rules.",
+  "dispatchPolicy": "taskName values are reusable role dispatch labels, not durable live handles or sidebar thread IDs. Recreate session-scoped native agents as needed.",
+  "routingPolicy": "Compact, clearly scoped, low-risk edits: Small Edits plus coordinator review and relevant validation. Substantial, ambiguous, security, network or architectural work: full Planner/Coder/Tester/Reviewer pipeline."
 }

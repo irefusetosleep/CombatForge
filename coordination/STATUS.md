@@ -1,5 +1,26 @@
 # Current coordination state
 
+Task: WORKFLOW-MODELS-02 — completed model and simple-edit routing amendment.
+Planner: gpt-6-astra, medium reasoning; new native planner_astra instance created.
+Small Edits: gpt-6.1-sol, inherited reasoning; native small_edits instance created.
+Coordinator, Coder, Tester and Reviewer defaults are preserved. No active tasks.
+
+Planner finalized AC-01 through AC-05; Small Edits implemented the assigned
+workflow files, followed by coordinator diff review and targeted guide correction.
+The original TEAM-WORKFLOW.md is unchanged. Later amendments live in
+WORKFLOW-OVERRIDES.md and take precedence only for specified rules.
+
+Simple, clear, low-risk changes route to Small Edits plus coordinator checks.
+Substantial, ambiguous, security, network and architectural work retains the full
+Planner/Coder/Tester/Reviewer pipeline. Session handles are recreated as needed;
+model overrides use fresh contexts. Existing concurrency limits are unchanged.
+
+Coordinator checks: exact JSON model/effort/fork settings, unchanged other-role
+configuration and retired IDs, baseline prompt SHA256, documentation-only scope,
+and whitespace validation. Plugin code was not changed, built or reinstalled.
+
+## Previous feature delivery
+
 Task: TEMPLATE-SKILLS-01 — delivered working basic melee/projectile Tool generation.
 Specification: coordination/specs/TEMPLATE-SKILLS-01.md; Open questions: none.
 User decisions: both functional templates; optional blank animation ID skips;

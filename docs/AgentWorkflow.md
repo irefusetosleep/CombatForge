@@ -1,16 +1,42 @@
 # Native team workflow
 
 This chat is the coordinator for CombatForge's **Planner**, **Coder**, **Tester**
-and **Reviewer** native subagents. `coordination/TEAM-WORKFLOW.md` preserves the
-user's authoritative instructions verbatim. `coordination/threads.json` defines
+and **Reviewer** native subagents, plus **Small Edits** for simple edits.
+`coordination/TEAM-WORKFLOW.md` preserves the
+user's original instructions verbatim. Later user amendments in
+`coordination/WORKFLOW-OVERRIDES.md` take precedence over conflicting original
+workflow wording; all other original requirements remain in force.
+`coordination/threads.json` defines
 the active workflow and retains old chat IDs only as retired archive references.
-Do not assign work to those chats. Native handles are session-scoped, not durable app thread IDs; recreate agents per session using the persisted role definitions. This chat remains the user entry point; no persistent role sidebar chats are needed. No model or reasoning settings are changed.
+Do not assign work to those chats. Native handles are session-scoped, not durable app thread IDs; recreate agents per session using the persisted role definitions. This chat remains the user entry point; no persistent role sidebar chats are needed. Planner is dispatched with `model="gpt-6-astra"`, `reasoning_effort="medium"`,
+`fork_turns="none"`. Small Edits uses `model="gpt-6.1-sol"` and
+`fork_turns="none"`, omitting the reasoning override to inherit the normal
+harness default. Coordinator, Coder, Tester and Reviewer retain their configured
+model and reasoning defaults. Do not change global settings. If a requested
+model is unavailable, report the limitation; never silently substitute.
 
 Use real native subagents when available. If unavailable, explain this and run
 separate sequential role stages without claiming independent agents ran. The
-host permits the coordinator plus three active subagents, so all four specialist
-roles cannot run concurrently. Stage them; parallelize only genuinely independent
+host permits the coordinator plus three active subagents, so all five specialist
+definitions must be staged within that unchanged limit. Parallelize only independent
 work, typically Coder implementation and Tester test preparation.
+
+## Simple-edit route
+
+The coordinator may route a compact, clearly specified, low-risk plugin edit to
+Small Edits, then review the diff and run relevant validation before delivery.
+A separate full Planner/Coder/Tester/Reviewer cycle is not required for that route.
+Escalate substantial or ambiguous work, security or network changes, and
+architectural decisions to the full workflow below. If scope expands, stop the
+affected edit and return it to the coordinator for full-pipeline assignment.
+
+Small Edits owns only assigned production changes. It may read tests but cannot
+weaken, delete or rewrite tests to pass; test changes belong to Tester. It shares
+all worker restrictions: no spawning agents, commits, plugin installation or live
+Studio mutation. For WORKFLOW-MODELS-02 only, its assignment instead permits
+`AGENTS.md`, `coordination/threads.json`, `docs/AgentWorkflow.md` and
+`coordination/WORKFLOW-OVERRIDES.md`; production and test code are excluded.
+The coordinator retains final review, validation, STATUS updates and delivery.
 
 ## Specification and clarification
 
@@ -100,7 +126,8 @@ and recommended correction. Finish with exactly one verdict:
 
 Never approve known blocking defects; state verification limits. Each completed
 feature report gives what changed, AC statuses, tests actually run/results,
-Reviewer verdict, limitations and remaining manual Studio checks.
+Reviewer verdict (or coordinator review for simple edits), limitations and
+remaining manual Studio checks.
 
 ## Delivery boundaries
 
@@ -115,7 +142,6 @@ Prior user authorization covers new revisions installed locally through
 folder. This does not authorize publication, deployment or pushes: each requires
 an explicit user request. No remote is currently configured.
 
-For this workflow migration, run JSON consistency and `git diff --check`; no Luau
-behavior changes, plugin build or installation is required. The coordinator
-archives the four retired chats only after migration checks pass and changes are
-committed; archival preserves recoverable history and does not delete it. Setup is ready for the user's first feature/problem; none was supplied.
+For workflow-only changes, run JSON/consistency checks and `git diff --check`;
+no plugin build or installation is required when runtime behavior is unchanged.
+The four retired chats are already archived and their history remains recoverable.

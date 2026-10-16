@@ -3,12 +3,16 @@
 Read `coordination/PROJECT.md` for the short project map. Read only files needed
 for the assigned task; do not load the old development chat by default.
 The authoritative team instructions are preserved verbatim in
-`coordination/TEAM-WORKFLOW.md`; use `docs/AgentWorkflow.md` for the operating guide.
+`coordination/TEAM-WORKFLOW.md`. Later user amendments in
+`coordination/WORKFLOW-OVERRIDES.md` take precedence where they conflict; use
+`docs/AgentWorkflow.md` for the operating guide.
 
 ## Coordinator and native subagents
 
 - This chat coordinates distinct native subagents named **Planner**, **Coder**,
-  **Tester**, and **Reviewer** for each feature request. These are staged roles,
+  **Tester**, and **Reviewer** for the full feature workflow, plus **Small Edits**
+  for the simple-edit route defined in `coordination/WORKFLOW-OVERRIDES.md`.
+  These are staged roles,
   not persistent sidebar chats. Handles are session-scoped; recreate roles from the
   persisted definitions when needed. Use real subagents when available; otherwise
   disclose the limitation and run the roles as separate sequential stages.
@@ -35,14 +39,24 @@ The authoritative team instructions are preserved verbatim in
   staging/commits or commands that modify the tree or generate artifacts.
   Inspect files, diffs and existing evidence only; send recommendations to the
   coordinator for Coder or Tester to implement.
-- Follow plan -> clarification -> code and independent test preparation ->
+- For clear, compact, low-risk edits, Small Edits implements the assigned scope
+  and the coordinator reviews and validates it. Substantial, ambiguous, security,
+  network or architectural work uses the full pipeline. Small Edits owns only
+  assigned production edits, cannot weaken tests, and shares all worker limits;
+  this workflow setup alone assigns it the four documentation/configuration files
+  listed in `coordination/WORKFLOW-OVERRIDES.md`.
+- For full-pipeline work, follow plan -> clarification -> code and independent test preparation ->
   test/fix -> read-only review -> fix/retest/review. Notify all roles and update
   acceptance criteria before continuing work affected by specification changes.
   Continue routine handoffs autonomously after blocking questions are resolved.
 - Parallelize only independent work with exclusive file ownership. All agents
   share this checkout and must preserve others' work. The host supports the
-  coordinator plus three subagents at once; stage the four roles within that
-  limit, normally Coder plus Tester preparation. Do not change model settings.
+  coordinator plus three subagents at once; stage the five specialist definitions
+  within that limit, normally Coder plus Tester preparation. Only Planner uses
+  `gpt-6-astra` with `medium` reasoning and Small Edits uses `gpt-6.1-sol` with
+  no reasoning override. Spawn both with `fork_turns="none"`; preserve all other
+  configured model/reasoning defaults and global settings. Report unavailable
+  requested models instead of silently substituting.
 - Briefs include task ID, objective/specification, relevant paths, allowed files,
   acceptance criteria, validation commands and dependencies. Handoffs summarize
   changed paths, AC mapping, actual checks, limitations and areas needing review.
@@ -56,7 +70,8 @@ The authoritative team instructions are preserved verbatim in
   **No blocking findings; verification incomplete**, or
   **Approved based on available evidence**. Never approve known blocking defects.
 - Finish each feature with implementation, AC status, actual tests/results,
-  Reviewer verdict, limitations and manual Studio checks. Keep active assignments
+  Reviewer verdict (or coordinator review for simple edits), limitations and
+  manual Studio checks. Keep active assignments
   and decisions in `coordination/STATUS.md`; replace stale status.
 
 ## Build and delivery
