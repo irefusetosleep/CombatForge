@@ -21,6 +21,23 @@
         "Client": { "$path": "Examples/ExampleTool.client.luau", "$properties": { "Disabled": true } },
         "ActivateSkill": { "$className": "RemoteEvent" }
       },
+      "TemplateInstaller": { "$path": "Plugin/TemplateInstaller.luau" },
+      "MeleeToolTemplate": {
+        "$className": "Tool",
+        "$properties": { "RequiresHandle": false, "CanBeDropped": false, "ToolTip": "CombatForge basic melee skill" },
+        "Skill": { "$path": "Templates/MeleeSkill.luau" },
+        "Server": { "$path": "Templates/ToolServer.server.luau", "$properties": { "Disabled": true } },
+        "Client": { "$path": "Templates/ToolClient.client.luau", "$properties": { "Disabled": true } },
+        "ActivateSkill": { "$className": "RemoteEvent" }
+      },
+      "ProjectileToolTemplate": {
+        "$className": "Tool",
+        "$properties": { "RequiresHandle": false, "CanBeDropped": false, "ToolTip": "CombatForge basic projectile skill" },
+        "Skill": { "$path": "Templates/ProjectileSkill.luau" },
+        "Server": { "$path": "Templates/ToolServer.server.luau", "$properties": { "Disabled": true } },
+        "Client": { "$path": "Templates/ToolClient.client.luau", "$properties": { "Disabled": true } },
+        "ActivateSkill": { "$className": "RemoteEvent" }
+      },
       "AbilityConfig": { "$path": "Plugin/AbilityConfig.luau" },
       "AbilityManager": { "$path": "Plugin/AbilityManager.luau" }
   }

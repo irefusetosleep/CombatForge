@@ -19,6 +19,13 @@ no remote. Builds and plugin backups are ignored. Local installed plugin:
 - Example: `Examples/*`, `Plugin/ExampleInstaller.luau`, `docs/ExampleSkill.md`.
   One click runs a regular left box and validated client/server right box;
   shared per-activation hit tracking prevents double damage.
+- Basic templates: `Templates/*`, `Plugin/TemplateInstaller.luau`,
+  `docs/TemplateSkills.md`. Template Skills creates fresh melee/projectile Tools
+  in StarterPack; a Mouse Aim/Body Aim slider selects each projectile's mode.
+  Editable settings are in each Tool's Skill.Config, separate from Update Skills.
+  AnimationId is optional; melee uses the shared Hitbox, projectile uses swept
+  server spherecasts. Tests/RunTemplateChecks.luau accepts a source table for
+  isolated Studio checks, including real WorldModel spatial queries.
 - Dummy: `Plugin/DummySpawner.luau`, `Runtime/DummyIdle.server.luau`.
   Camera-facing unanchored grey R6/R15 dummy, selected beneath Spawn Dummy;
   classic smile, unlocked parts, void fallback origin, native name/health;
@@ -35,5 +42,6 @@ The user authorized temporary isolated hitbox tests with cleanup in the Studio
 place **CombatForge Testing**, place ID 98128576921103. Re-list Studio connections
 before use. Obtain confirmation for other place mutations not already authorized.
 
-Latest plugin feature commit: `5833e53` (confirmed skill deletion with Studio undo support).
+Latest feature delivery: Template Skills generation (see docs/TemplateSkills.md).
+Previous feature commit: `5833e53` (confirmed skill deletion with Studio undo support).
 See `git log` for current versions, rather than relying on chat history.

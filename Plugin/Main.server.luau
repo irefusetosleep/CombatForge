@@ -10,6 +10,7 @@ local AbilityManager = require(script.AbilityManager)
 local Theme = require(script.Theme)
 local RuntimeInstaller = require(script.RuntimeInstaller)
 local ExampleInstaller = require(script.ExampleInstaller)
+local TemplateInstaller = require(script.TemplateInstaller)
 local DummySpawner = require(script.DummySpawner)
 local toolbar = plugin:CreateToolbar("CombatForge")
 local icon = "rbxasset://textures/sparkle.png"
@@ -56,6 +57,9 @@ local success, failure = pcall(function()
 		return ExampleInstaller.install(script.HitboxTemplate, script.ExampleConfigTemplate, script.ExampleToolTemplate)
 	end, function(rigType: Enum.HumanoidRigType)
 		return DummySpawner.spawn(rigType)
+	end, function(kind: string, aimMode: string)
+		local template = if kind == "Melee" then script.MeleeToolTemplate else script.ProjectileToolTemplate
+		return TemplateInstaller.install(script.HitboxTemplate, template, kind, aimMode)
 	end)
 
 	local function syncButton()

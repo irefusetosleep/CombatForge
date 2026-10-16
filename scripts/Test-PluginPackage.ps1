@@ -31,10 +31,11 @@ $modules = @{
     RuntimeInstaller = 'Plugin/RuntimeInstaller.luau'
     HitboxTemplate = 'Runtime/Hitbox.luau'
     ExampleInstaller = 'Plugin/ExampleInstaller.luau'
+    TemplateInstaller = 'Plugin/TemplateInstaller.luau'
     DummySpawner = 'Plugin/DummySpawner.luau'
     ExampleConfigTemplate = 'Examples/ExampleSlashConfig.luau'
 }
-if ($root.SelectNodes('Item').Count -ne $modules.Count + 1) { throw 'Unexpected plugin child count.' }
+if ($root.SelectNodes('Item').Count -ne $modules.Count + 3) { throw 'Unexpected plugin child count.' }
 foreach ($moduleName in $modules.Keys) {
     $matches = $root.SelectNodes("Item[@class='ModuleScript'][Properties/string[@name='Name']='$moduleName']")
     if ($matches.Count -ne 1) { throw "Missing or duplicated module: $moduleName" }
@@ -57,4 +58,17 @@ foreach ($entry in @(@('Skill', 'ModuleScript', 'Examples/ExampleSlash.luau'), @
     }
 }
 if ($null -eq $tool.SelectSingleNode("Item[@class='RemoteEvent'][Properties/string[@name='Name']='ActivateSkill']")) { throw 'Example RemoteEvent missing.' }
-Write-Output 'Verified executable root Script, module sources and playable example Tool.'
+foreach ($kind in @('Melee', 'Projectile')) {
+    $template = $root.SelectSingleNode("Item[@class='Tool'][Properties/string[@name='Name']='$($kind)ToolTemplate']")
+    if ($null -eq $template -or $template.SelectNodes('Item').Count -ne 4) { throw "Missing $kind Tool template or unexpected children." }
+    if ($template.SelectSingleNode("Properties/bool[@name='RequiresHandle']").InnerText -ne 'false' -or
+        $template.SelectSingleNode("Properties/bool[@name='CanBeDropped']").InnerText -ne 'false') { throw "$kind Tool must work without a Handle and must not be droppable." }
+    foreach ($entry in @(@('Skill', 'ModuleScript', "Templates/$($kind)Skill.luau"), @('Server', 'Script', 'Templates/ToolServer.server.luau'), @('Client', 'LocalScript', 'Templates/ToolClient.client.luau'))) {
+        $matches = $template.SelectNodes("Item[@class='$($entry[1])'][Properties/string[@name='Name']='$($entry[0])']")
+        if ($matches.Count -ne 1) { throw "Missing or duplicated $kind child: $($entry[0])" }
+        Test-Source $matches[0] $entry[2]
+        if ($entry[1] -ne 'ModuleScript' -and $matches[0].SelectSingleNode("Properties/bool[@name='Disabled']").InnerText -ne 'true') { throw "$kind runtime scripts must be disabled inside the plugin." }
+    }
+    if ($template.SelectNodes("Item[@class='RemoteEvent'][Properties/string[@name='Name']='ActivateSkill']").Count -ne 1) { throw "$kind activation RemoteEvent missing or duplicated." }
+}
+Write-Output 'Verified executable Legacy root, module sources, example and disabled basic skill Tool templates.'

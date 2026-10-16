@@ -5,7 +5,7 @@ local AbilityManager = require(script.Parent.AbilityManager)
 local Theme = require(script.Parent.Theme)
 local ColourPicker = require(script.Parent.ColourPicker)
 
-function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), preferences: typeof(Theme.new())?, installHitbox: (() -> (boolean, string))?, installExample: (() -> (boolean, string))?, spawnDummy: ((Enum.HumanoidRigType) -> (boolean, string))?)
+function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), preferences: typeof(Theme.new())?, installHitbox: (() -> (boolean, string))?, installExample: (() -> (boolean, string))?, spawnDummy: ((Enum.HumanoidRigType) -> (boolean, string))?, createTemplate: ((string, string) -> (boolean, string))?)
  local settings = preferences or Theme.new()
  local palette = Theme.palette(settings.get())
  local root = Instance.new("ScrollingFrame")
@@ -23,6 +23,7 @@ function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), 
  local destructiveFill = Color3.fromRGB(190, 45, 55)
  local busy = false
  local dummyRigType = Enum.HumanoidRigType.R6
+ local projectileAim = "Mouse"
  local order = 0
  local function reset()
   palette = Theme.palette(settings.get())
@@ -343,12 +344,76 @@ function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), 
    iconPart("RightSlot", 22, 18, 2, 10)
   end
  end
+ local function showTemplates()
+  reset()
+  label("Heading", "Template Skills", 24)
+  button("Back", "Main menu", showMenu)
+  local status: TextLabel
+  local function create(kind: string)
+   if not createTemplate then return end
+   busy = true
+   local mode = projectileAim
+   status.Text = "Creating template…"
+   local ok, created, message = pcall(createTemplate, kind, mode)
+   busy = false
+   status.Text = if ok then message else "Could not create template: " .. tostring(created)
+   status.TextColor3 = if ok and created then green else red
+  end
+  button("EmptyMeleeSkill", "Empty Melee Skill", function() create("Melee") end)
+  button("EmptyProjectileSkill", "Empty Projectile Skill", function() create("Projectile") end)
+  local selector = Instance.new("Frame")
+  selector.Size = UDim2.new(1, -8, 0, 36)
+  selector.BackgroundColor3 = palette.surface
+  selector.BorderSizePixel = 0
+  place(selector, "ProjectileAimSelector")
+  local corner = Instance.new("UICorner")
+  corner.CornerRadius = UDim.new(0, 8)
+  corner.Parent = selector
+  local thumb = Instance.new("Frame")
+  thumb.Name = "SelectedSegment"
+  thumb.Size = UDim2.fromScale(0.5, 1)
+  thumb.BackgroundColor3 = palette.accent
+  thumb.BorderSizePixel = 0
+  thumb.Parent = selector
+  local thumbCorner = Instance.new("UICorner")
+  thumbCorner.CornerRadius = corner.CornerRadius
+  thumbCorner.Parent = thumb
+  local segments: { TextButton } = {}
+  local function updateAim()
+   thumb.Position = UDim2.fromScale(if projectileAim == "Mouse" then 0 else 0.5, 0)
+   for index, segment in segments do
+    segment.TextColor3 = if (index == 1) == (projectileAim == "Mouse") then palette.accentText else palette.text
+   end
+  end
+  for index, mode in { "Mouse", "Body" } do
+   local segment = Instance.new("TextButton")
+   segment.Name = mode .. "Aim"
+   segment.Text = mode .. " Aim"
+   segment.Size = UDim2.fromScale(0.5, 1)
+   segment.Position = UDim2.fromScale((index - 1) * 0.5, 0)
+   segment.BackgroundTransparency = 1
+   segment.BorderSizePixel = 0
+   segment.Font = Enum.Font.GothamBold
+   segment.TextSize = 14
+   segment.ZIndex = 2
+   segment.Parent = selector
+   table.insert(segments, segment)
+   segment.Activated:Connect(function()
+    if busy then return end
+    projectileAim = mode
+    updateAim()
+   end)
+  end
+  updateAim()
+  status = label("TemplateStatus", "Creates a working Tool in StarterPack. Edit its Skill module to customize damage, timing and animation. Choose projectile aim before creating.", 14)
+ end
  showMenu = function()
   reset()
   label("Heading", "CombatForge", 26)
   label("Introduction", "Create and manage your combat skills.", 14)
   button("CreateNewSkill", "Create New Skill", function() showForm(nil) end, true)
   button("UpdateSkills", "Update Skills", showList)
+  if createTemplate then button("TemplateSkills", "Template Skills", showTemplates) end
   button("Settings", "Settings", function() showSettings(nil) end)
   if spawnDummy then
    local status: TextLabel
