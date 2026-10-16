@@ -35,5 +35,5 @@ The user authorized temporary isolated hitbox tests with cleanup in the Studio
 place **CombatForge Testing**, place ID 98128576921103. Re-list Studio connections
 before use. Obtain confirmation for other place mutations not already authorized.
 
-Last plugin feature commit before workflow setup: `fe7a025` (R6 dummy idle).
+Latest plugin feature commit: `5833e53` (confirmed skill deletion with Studio undo support).
 See `git log` for current versions, rather than relying on chat history.
