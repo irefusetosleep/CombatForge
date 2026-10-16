@@ -1,0 +1,11 @@
+Generated with built-in image_gen editing. Transparent background preserved.
+Original project asset: CombatForge-logo.png. Final revision straightens the sword.
+
+Correct only the sword geometry in this logo. It is STILL BENT at the point under the hammer. Remove that bend completely.
+Make the sword a rigid, straight horizontal sword in side profile:
+- from the guard on the right to the beginning of the triangular tip on the left, the TOP blade outline is ONE straight horizontal line;
+- the BOTTOM blade outline is ONE straight horizontal line, parallel to the top;
+- the central blade ridge is ONE straight horizontal line;
+- handle, guard center, blade center and tip are all on ONE horizontal axis.
+No chevron, V, kink, sag, bow, curve or change in direction under the hammer. Do not make the blade follow the anvil's perspective. The blade must look like a single straight steel bar with a pointed left tip, not bent metal.
+Keep the anvil, hammer, sparks, simple blocky Roblox style, colors and transparent background. The hammer contacts the straight blade but does not deform it. No text.
