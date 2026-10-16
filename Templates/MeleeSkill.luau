@@ -22,8 +22,11 @@ function Skill.GetConfig()
 	if type(shared) ~= "table" then return unavailable("config must return a settings table") end
 	-- Capture scalar values once; delayed attacks never reread a mutable required table.
 	local config = {}
-	for _, key in { "Name", "Damage", "Cooldown", "Range", "AnimationId", "HitDelay", "HitboxWidth", "HitboxHeight" } do config[key] = shared[key] end
+	for _, key in { "Name", "Damage", "Cooldown", "Range", "AnimationId", "HitDelay", "HitboxWidth", "HitboxHeight", "HitboxOffsetX", "HitboxOffsetY", "HitboxOffsetZ" } do config[key] = shared[key] end
 	if not Skill.Validate(config) then return unavailable("config has missing or invalid required settings") end
+	if config.HitboxOffsetX == nil then
+		config.HitboxOffsetX = 0; config.HitboxOffsetY = 0; config.HitboxOffsetZ = 0
+	end
 	return config
 end
 local function finite(value): boolean
@@ -40,6 +43,14 @@ function Skill.Validate(config): boolean
 	for _, key in { "HitboxWidth", "HitboxHeight" } do
 		if not finite(config[key]) or config[key] <= 0 then return false end
 	end
+	local offsets = 0
+	for _, key in { "HitboxOffsetX", "HitboxOffsetY", "HitboxOffsetZ" } do
+		if config[key] ~= nil then
+			offsets += 1
+			if not finite(config[key]) then return false end
+		end
+	end
+	if offsets ~= 0 and offsets ~= 3 then return false end
 	return true
 end
 function Skill.Cast(caster: Model, _aimPoint, isValid: () -> boolean, config)
@@ -47,7 +58,7 @@ function Skill.Cast(caster: Model, _aimPoint, isValid: () -> boolean, config)
 	if not isValid() then return end
 	local root = caster:FindFirstChild("HumanoidRootPart") :: BasePart
 	local Hitbox = require(Storage.CombatForge.Runtime.Hitbox)
-	local detector = Hitbox.Box(root.CFrame * CFrame.new(0, 0, -config.Range / 2),
+	local detector = Hitbox.Box(root.CFrame * CFrame.new(config.HitboxOffsetX or 0, config.HitboxOffsetY or 0, -config.Range / 2 + (config.HitboxOffsetZ or 0)),
 		Vector3.new(config.HitboxWidth, config.HitboxHeight, config.Range), { Caster = caster })
 	local ok, hits = pcall(function() return detector:Cast() end)
 	detector:Destroy()

@@ -19,6 +19,7 @@ no remote. Builds and plugin backups are ignored. Local installed plugin:
 - Example: `Examples/*`, `Plugin/ExampleInstaller.luau`, `docs/ExampleSkill.md`.
   One click runs a regular left box and validated client/server right box;
   shared per-activation hit tracking prevents double damage.
+- Visual melee hitbox authoring: `Plugin/HitboxEditor.luau`, `AbilityManager.saveGeometry`, and Update Skills -> Edit Hitbox. Select an existing R6/R15 dummy, Start Preview, Move/Resize, then Save or Cancel. Draft preview is plugin-owned; Save writes size and a complete signed root-local offset triple with checked source/history. Range remains depth. Older Tools need fresh generation/manual code port to consume offsets. Native pointer and undo still require manual verification.
 - Basic templates: `Templates/*`, `Plugin/TemplateInstaller.luau`,
   `docs/TemplateSkills.md`. Template Skills creates fresh melee/projectile Tools
   in StarterPack; a Mouse Aim/Body Aim slider selects each projectile's mode.

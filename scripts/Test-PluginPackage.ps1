@@ -26,6 +26,7 @@ $modules = @{
     UI = 'Plugin/UI.luau'
     Theme = 'Plugin/Theme.luau'
     ColourPicker = 'Plugin/ColourPicker.luau'
+    HitboxEditor = 'Plugin/HitboxEditor.luau'
     AbilityConfig = 'Plugin/AbilityConfig.luau'
     AbilityManager = 'Plugin/AbilityManager.luau'
     RuntimeInstaller = 'Plugin/RuntimeInstaller.luau'

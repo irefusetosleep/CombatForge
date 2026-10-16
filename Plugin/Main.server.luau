@@ -12,6 +12,7 @@ local RuntimeInstaller = require(script.RuntimeInstaller)
 local ExampleInstaller = require(script.ExampleInstaller)
 local TemplateInstaller = require(script.TemplateInstaller)
 local DummySpawner = require(script.DummySpawner)
+local HitboxEditor = require(script.HitboxEditor)
 local toolbar = plugin:CreateToolbar("CombatForge")
 local icon = "rbxasset://textures/sparkle.png"
 local logo = "rbxassetid://118596951641724"
@@ -66,7 +67,12 @@ local success, failure = pcall(function()
 	end, function(kind: string, aimMode: string)
 		local template = if kind == "Melee" then script.MeleeToolTemplate else script.ProjectileToolTemplate
 		return TemplateInstaller.install(script.HitboxTemplate, template, kind, aimMode)
-	end)
+	end, {
+		isSupported = HitboxEditor.isSupported,
+		start = function(config, onChanged, onStopped)
+			return HitboxEditor.start(plugin, config, onChanged, onStopped)
+		end,
+	})
 
 	local function syncButton()
 		button:SetActive(createdWidget.Enabled)

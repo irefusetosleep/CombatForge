@@ -244,4 +244,74 @@ function AbilityManager.update(snapshot: Snapshot, inputs: AbilityConfig.Inputs)
 	return true, "Saved " .. config.Name .. ". Save your place to keep these changes."
 end
 
+-- Narrow visual-editor save: only the six box geometry values may change.
+function AbilityManager.saveGeometry(snapshot: Snapshot, geometry): (boolean, string)
+	if RunService:IsRunning() then return false, "Stop the playtest before saving hitbox geometry." end
+	local config, parseError = AbilityConfig.parse(snapshot.source)
+	if not config or not AbilityConfig.isMelee(config) then return false, parseError or "Reopen a supported melee config." end
+	local keys = { "HitboxWidth", "HitboxHeight", "Range", "HitboxOffsetX", "HitboxOffsetY", "HitboxOffsetZ" }
+	local allowed = {}
+	for _, key in keys do allowed[key] = true end
+	if type(geometry) ~= "table" then return false, "Invalid hitbox geometry." end
+	for key in geometry do if not allowed[key] then return false, "Only hitbox geometry may be saved here." end end
+	for _, key in keys do
+		if type(geometry[key]) ~= "number" then return false, "Missing numeric geometry: " .. key end
+		(config :: any)[key] = geometry[key]
+	end
+	local valid, validationError = AbilityConfig.validateConfig(config)
+	if not valid then return false, validationError or "Invalid hitbox geometry." end
+	local source = AbilityConfig.serialize(valid)
+	local module = snapshot.module
+	local function checkTarget(): string?
+		if RunService:IsRunning() then return "Stop the playtest before saving hitbox geometry." end
+		local folder, folderError = getAbilities()
+		if not folder or module.Parent ~= folder or module.Name ~= snapshot.name then
+			return folderError or "This skill was moved, deleted or renamed. Reopen it before saving."
+		end
+		return nil
+	end
+	local targetError = checkTarget()
+	if targetError then return false, targetError end
+	local recording: string? = nil
+	local wrote = false
+	local success, failure = pcall(function()
+		if ScriptEditorService:GetEditorSource(module) ~= snapshot.source then error("This skill changed. Reopen it before saving.", 0) end
+		recording = ChangeHistoryService:TryBeginRecording("CombatForge.SaveHitbox", "Edit hitbox " .. snapshot.name)
+		if not recording then error("Studio could not start an undo recording. Try again.", 0) end
+		local conflict: string? = nil
+		ScriptEditorService:UpdateSourceAsync(module, function(currentSource: string)
+			conflict = checkTarget()
+			if currentSource ~= snapshot.source then conflict = "This skill changed while saving. Reopen it." end
+			if conflict then return nil end
+			wrote = true
+			return source
+		end)
+		if conflict then error(conflict, 0) end
+		wrote = true
+		local latestError = checkTarget()
+		if latestError then error(latestError, 0) end
+		ChangeHistoryService:FinishRecording(recording :: string, Enum.FinishRecordingOperation.Commit)
+		recording = nil
+	end)
+	if not success then
+		if recording then
+			local cancelled, cancelError = pcall(function() ChangeHistoryService:FinishRecording(recording :: string, Enum.FinishRecordingOperation.Cancel) end)
+			if not cancelled then warn("[CombatForge] Could not cancel hitbox save: " .. tostring(cancelError)) end
+		end
+		-- Cancellation normally restores source. If not, restore only our exact write;
+		-- never replace content changed by a concurrent editor.
+		if wrote then
+			local restored, restoreError = pcall(function()
+				ScriptEditorService:UpdateSourceAsync(module, function(currentSource: string)
+					if currentSource == source then return snapshot.source end
+					return nil
+				end)
+			end)
+			if not restored then return false, "Could not save or restore hitbox source. Reopen the skill. " .. tostring(restoreError) end
+		end
+		return false, "Could not save hitbox. " .. tostring(failure)
+	end
+	return true, "Saved hitbox for " .. snapshot.name .. ". Undo is available; changes apply next Play."
+end
+
 return AbilityManager

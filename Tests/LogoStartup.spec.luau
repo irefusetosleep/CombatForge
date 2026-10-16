@@ -54,7 +54,7 @@ return function(loadMain)
   end
   loadMain(plugin,{
    UI={mount=function() mounts+=1 end},Theme={new=function() return {} end},AbilityManager={},
-   RuntimeInstaller={},ExampleInstaller={},TemplateInstaller={},DummySpawner={},
+   RuntimeInstaller={},ExampleInstaller={},TemplateInstaller={},DummySpawner={},HitboxEditor={isSupported=function() return false end,start=function() return nil end},
   },{
    game={GetService=function(_,name) assert(name=="ContentProvider","Unexpected startup service"); return provider end},
    task={defer=enqueue,spawn=enqueue,cancel=function(job) cancels+=1; job.cancelled=true end},

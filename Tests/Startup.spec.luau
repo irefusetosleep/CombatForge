@@ -42,7 +42,7 @@ return function(loadMain)
  }
  loadMain(plugin, {
   UI = {mount = function() mounts += 1 end}, AbilityManager = {}, Theme = {new = function() return {} end},
-  RuntimeInstaller = {}, ExampleInstaller = {}, DummySpawner = {}, TemplateInstaller = {},
+  RuntimeInstaller = {}, ExampleInstaller = {}, DummySpawner = {}, TemplateInstaller = {}, HitboxEditor = {isSupported=function() return false end,start=function() return nil end},
  })
  check(mounts == 1 and active == false, "Startup builds editor once")
  click.Fire(); check(widget.Enabled, "Toolbar opens")

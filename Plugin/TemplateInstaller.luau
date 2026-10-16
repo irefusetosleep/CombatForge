@@ -62,6 +62,7 @@ function Installer.install(hitbox: ModuleScript, template: Tool, kind: string, a
 		}
 		if kind == "Melee" then
 			settings.HitboxWidth = 5; settings.HitboxHeight = 5
+			settings.HitboxOffsetX = 0; settings.HitboxOffsetY = 0; settings.HitboxOffsetZ = 0
 		else
 			settings.ProjectileSpeed = 60; settings.ProjectileRadius = 0.5
 			settings.ProjectileLifetime = 3; settings.AimMode = aimMode

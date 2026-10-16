@@ -83,6 +83,44 @@ new configs intact; an older editor may refuse their extended schema. Bundled
 scripts remain
 disabled inside the plugin and only generated copies are enabled.
 
+## Visual melee hitbox editing
+
+Open **Update Skills**, select a complete melee config and choose **Edit Hitbox**.
+Save any unsaved common-field edits first. Select an existing R6/R15 dummy Model
+(or one of its descendants) in Workspace, then choose **Start Preview**. The dummy
+must contain a Humanoid and a BasePart named HumanoidRootPart. Selecting multiple
+dummy models is refused. Changing selection after starting does not retarget it.
+
+Choose **Move** to edit the box's root-local offset, or **Resize** to change its
+width (X), height (Y) or Range/depth (Z). Drag a visible handle; the readouts show
+size and offsets in studs. Positive X is root-right, positive Y is up, and negative
+Z is forward. Resizing preserves the box center while moving the opposite faces
+symmetrically. Handle drags use a 0.05-stud minimum dimension; opening an existing
+smaller positive box does not change its settings. Sizes that Studio cannot
+represent in the preview report an error rather than changing the config.
+
+**Save** writes only the geometry into that config and provides one Undo/Redo
+action. Other settings are preserved. Stale/moved/renamed configs must be reopened.
+**Cancel** discards the draft. Navigating away, closing the widget, losing the
+reference dummy/root, switching the active Studio tool or entering Play removes
+the preview. Previewing does not change the dummy, source or change history and
+creates no saved workspace Part. The editor supports melee boxes; projectile,
+rotation and custom executable configs are outside its scope.
+
+New melee configs contain HitboxOffsetX/Y/Z = 0. For older supported configs,
+omitting all three means zero offsets; a partial triple is invalid. The preview
+and current melee runtime both use:
+
+```luau
+size = Vector3.new(HitboxWidth, HitboxHeight, Range)
+center = root.CFrame * CFrame.new(HitboxOffsetX, HitboxOffsetY, -Range/2 + HitboxOffsetZ)
+```
+
+Older copied Skill code does not consume new offsets automatically. Generate a
+fresh melee Tool or manually port the current MeleeSkill's offset capture,
+validation and Cast transform into the old copy. Existing Tools/configs remain
+intact; adding offsets alone cannot update old runtime code.
+
 ## Manual Studio verification — not run
 
 1. In Edit mode, open Template Skills. Confirm button labels, Back, and the slider
@@ -115,6 +153,15 @@ disabled inside the plugin and only generated copies are enabled.
 7. While playing, attempt template generation: expect an error and no mutations.
    In Edit mode, conflict with the melee Hitbox path: creation must report the
    conflict without replacing it. Confirm existing menu/editor/example actions.
+
+8. Open Edit Hitbox for a current melee config, select R6 then R15 dummies and
+   drag all Move/Resize faces. Rotate/move the reference and verify alignment.
+   Save, undo/redo and compare actual Play hit geometry. Cancel after dragging and
+   confirm unchanged source/history. Close the widget, navigate away, delete the
+   reference and enter Play during preview: all temporary visuals must disappear.
+   Try a stale source edit and invalid selection. Save/reopen the place and confirm
+   no preview instances remain. Native handle/pointer behavior is not proven by
+   isolated geometry or lifecycle tests.
 
 These steps require actual Studio input, physics/queries, rendering, animation
 permissions and native change history. Isolated tests cannot prove those results.

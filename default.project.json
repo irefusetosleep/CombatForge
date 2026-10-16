@@ -5,6 +5,7 @@
       "UI": { "$path": "Plugin/UI.luau" },
       "Theme": { "$path": "Plugin/Theme.luau" },
       "ColourPicker": { "$path": "Plugin/ColourPicker.luau" },
+      "HitboxEditor": { "$path": "Plugin/HitboxEditor.luau" },
       "HitboxTemplate": { "$path": "Runtime/Hitbox.luau" },
       "RuntimeInstaller": { "$path": "Plugin/RuntimeInstaller.luau" },
       "ExampleInstaller": { "$path": "Plugin/ExampleInstaller.luau" },

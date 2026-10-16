@@ -5,7 +5,7 @@ local AbilityManager = require(script.Parent.AbilityManager)
 local Theme = require(script.Parent.Theme)
 local ColourPicker = require(script.Parent.ColourPicker)
 
-function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), preferences: typeof(Theme.new())?, installHitbox: (() -> (boolean, string))?, installExample: (() -> (boolean, string))?, spawnDummy: ((Enum.HumanoidRigType) -> (boolean, string))?, createTemplate: ((string, string) -> (boolean, string))?)
+function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), preferences: typeof(Theme.new())?, installHitbox: (() -> (boolean, string))?, installExample: (() -> (boolean, string))?, spawnDummy: ((Enum.HumanoidRigType) -> (boolean, string))?, createTemplate: ((string, string) -> (boolean, string))?, hitboxEditor: any?)
  local settings = preferences or Theme.new()
  local palette = Theme.palette(settings.get())
  local root = Instance.new("ScrollingFrame")
@@ -25,7 +25,12 @@ function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), 
  local dummyRigType = Enum.HumanoidRigType.R6
  local projectileAim = "Mouse"
  local order = 0
+ local previewSession = nil
+ local function closePreview()
+  if previewSession then previewSession.destroy(); previewSession = nil end
+ end
  local function reset()
+  closePreview()
   palette = Theme.palette(settings.get())
   green = palette.success
   red = palette.error
@@ -109,6 +114,7 @@ function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), 
  local showList: (string?) -> ()
  local showForm: (AbilityManager.Snapshot?) -> ()
  local showSettings: (string?) -> ()
+ local showHitbox: (AbilityManager.Snapshot) -> ()
  showSettings = function(message)
   reset()
   label("Heading", "Settings", 24)
@@ -261,6 +267,65 @@ function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), 
    end
   end, true)
   status = label("Status", if snapshot then "Edit any field, then save your changes." else "Creates a ModuleScript in ReplicatedStorage.CombatForge.Abilities.", 14)
+  if snapshot and hitboxEditor then
+   if hitboxEditor.isSupported(snapshot.config) then
+    button("EditHitbox", "Edit Hitbox", function()
+     if dirty then status.Text = "Save your common settings before opening Edit Hitbox."; status.TextColor3 = red; return end
+     showHitbox(snapshot)
+    end)
+   else
+    label("HitboxHelp", "Visual hitbox editing supports complete melee box configs only. Projectile and custom configs are not supported.", 14)
+   end
+  end
+ end
+ showHitbox = function(snapshot)
+  reset()
+  label("Heading", "Edit Hitbox: " .. snapshot.name, 24)
+  label("HitboxInstructions", "Select an existing dummy Model (or one of its parts), then Start Preview. Move changes root-local offsets; Resize changes width, height and depth around the current center. All values are studs. Selection changes do not retarget a running preview.", 14)
+  local readout = label("HitboxReadout", "No preview started.", 14)
+  local status = label("HitboxStatus", "Changes remain a draft until Save. Cancel discards them.", 14)
+  local function changed(draft)
+   readout.Text = string.format("Size: %.4g x %.4g x %.4g studs\nLocal offset: X %.4g, Y %.4g, Z %.4g studs", draft.HitboxWidth, draft.HitboxHeight, draft.Range, draft.HitboxOffsetX, draft.HitboxOffsetY, draft.HitboxOffsetZ)
+  end
+  button("StartHitboxPreview", "Start Preview", function()
+   closePreview()
+   local session, message = hitboxEditor.start(snapshot.config, changed, function(reason)
+    previewSession = nil
+    if status.Parent then status.Text = reason; status.TextColor3 = red end
+   end)
+   previewSession = session
+   status.Text = message or "Could not start preview."
+   status.TextColor3 = if session then palette.text else red
+  end)
+  for _, mode in { "Move", "Resize" } do
+   button("Hitbox" .. mode, mode, function()
+    if not previewSession then status.Text = "Start Preview first."; status.TextColor3 = red; return end
+    previewSession.setMode(mode)
+    status.Text = mode .. " mode. Drag a handle; values are studs."
+    status.TextColor3 = palette.text
+   end)
+  end
+  button("SaveHitbox", "Save", function()
+   if not previewSession then status.Text = "Start Preview before saving."; status.TextColor3 = red; return end
+   busy = true
+   local ok, saved, message = pcall(manager.saveGeometry, snapshot, previewSession.getDraft())
+   busy = false
+   if ok and saved then
+    closePreview()
+    local refreshed, readError = manager.read(snapshot.module)
+    if refreshed then
+     showForm(refreshed)
+     local feedback = root:FindFirstChild("Status")
+     if feedback and feedback:IsA("TextLabel") then feedback.Text = message; feedback.TextColor3 = green end
+    else
+     status.Text = message .. " Reopen the skill. " .. (readError or ""); status.TextColor3 = red
+    end
+   else
+    status.Text = if ok then message else "Could not save hitbox: " .. tostring(saved)
+    status.TextColor3 = red
+   end
+  end, true)
+  button("CancelHitbox", "Cancel", function() showForm(snapshot) end)
  end
  local function showDelete(module: ModuleScript, expectedName: string)
   reset()
@@ -499,6 +564,16 @@ function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), 
    status = label("RuntimeStatus", "Install the runtime once per place to use box and sphere hitboxes in scripts.", 14)
   end
  end
+ local visibility = nil
+ if widget:IsA("PluginGui") or widget:IsA("ScreenGui") then
+  visibility = widget:GetPropertyChangedSignal("Enabled"):Connect(function()
+   if not widget.Enabled then closePreview() end
+  end)
+ end
+ root.Destroying:Connect(function()
+  closePreview()
+  if visibility then visibility:Disconnect() end
+ end)
  showMenu()
 end
 return UI

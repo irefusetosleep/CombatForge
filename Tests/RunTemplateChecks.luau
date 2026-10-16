@@ -29,6 +29,10 @@ return function(sources)
  local fixtures = {}
  local ok, failure = pcall(function()
   local parser = module("Plugin/AbilityConfig.luau")
+  if sources["Tests/VisualHitboxConfig.spec.luau"] then table.insert(results,compile("Tests/VisualHitboxConfig.spec.luau")(parser)) end
+  if sources["Tests/VisualHitboxSave.spec.luau"] then table.insert(results,compile("Tests/VisualHitboxSave.spec.luau")(parser,function(services)
+   return module("Plugin/AbilityManager.luau",services,{AbilityConfig=parser})
+  end)) end
   if sources["Tests/TemplateAllConfig.spec.luau"] then
    table.insert(results,compile("Tests/TemplateAllConfig.spec.luau")(parser,function(services)
     return module("Plugin/AbilityManager.luau",services,{AbilityConfig=parser})
@@ -61,6 +65,15 @@ return function(sources)
    return module(path,actualServices,mapped,actualGlobals),common
   end
   local theme = module("Plugin/Theme.luau")
+  if sources["Tests/VisualHitboxGeometry.spec.luau"] then
+   local editor=module("Plugin/HitboxEditor.luau",{Selection={},RunService={},CoreGui={}},{AbilityConfig=parser})
+   table.insert(results,compile("Tests/VisualHitboxGeometry.spec.luau")(editor,parser,linkedModule))
+  end
+  if sources["Tests/VisualHitboxLifecycle.spec.luau"] then
+   table.insert(results,compile("Tests/VisualHitboxLifecycle.spec.luau")(function(services,globals)
+    return module("Plugin/HitboxEditor.luau",services,{AbilityConfig=parser},globals)
+   end))
+  end
   local colourPicker = module("Plugin/ColourPicker.luau")
   local function uiLoader()
    local actions = {}
@@ -82,6 +95,10 @@ return function(sources)
   for _, path in {"Tests/TemplateMenu.spec.luau", "Tests/Menu.spec.luau", "Tests/SkillDeleteMenu.spec.luau"} do
    local ui, actions = uiLoader()
    table.insert(results, compile(path)(ui, actions))
+  end
+  if sources["Tests/VisualHitboxMenu.spec.luau"] then
+   local ui,actions=uiLoader()
+   table.insert(results,compile("Tests/VisualHitboxMenu.spec.luau")(ui,actions,parser))
   end
   table.insert(results, compile("Tests/Startup.spec.luau")(function(plugin, dependencies)
    return module("Plugin/Main.server.luau", nil, dependencies, {plugin=plugin,task={defer=function(callback) return {callback=callback} end,cancel=function() end}})
