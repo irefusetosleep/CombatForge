@@ -23,6 +23,7 @@ function Test-Source($Node, [string]$RelativePath) {
 }
 Test-Source $root 'Plugin/Main.server.luau'
 $modules = @{
+    Keybinds = 'Plugin/Keybinds.luau'
     UI = 'Plugin/UI.luau'
     Theme = 'Plugin/Theme.luau'
     ColourPicker = 'Plugin/ColourPicker.luau'

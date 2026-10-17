@@ -2,6 +2,7 @@
   "name": "CombatForge",
   "tree": {
       "$path": "Plugin/Main.server.luau",
+      "Keybinds": { "$path": "Plugin/Keybinds.luau" },
       "UI": { "$path": "Plugin/UI.luau" },
       "Theme": { "$path": "Plugin/Theme.luau" },
       "ColourPicker": { "$path": "Plugin/ColourPicker.luau" },

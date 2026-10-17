@@ -98,6 +98,21 @@ return function(Editor,Config,linkedModule)
  for _,bad in {0/0,math.huge,-math.huge} do
   check(Editor.drag(oriented,"Resize",Enum.NormalId.Top,bad,"Uniform")==nil,"VISUAL06 AC03 Nonfinite uniform distance rejected")
  end
+ -- VH07: global coordinates differ from box-local coordinates.
+ local worldFrame,worldSize=Editor.transform(root,oriented)
+ for _,entry in axes do
+  local moved=assert(Editor.drag(oriented,"Move",entry[1],2,"Axis","Global",root))
+  local actual,dimensions=Editor.transform(root,moved)
+  check(near(actual.Position,worldFrame.Position+entry[3]*2) and dimensions==worldSize,"VH07 AC06 Global Move follows world axes under rotated root")
+  check(near(actual.RightVector,worldFrame.RightVector) and near(actual.UpVector,worldFrame.UpVector),"VH07 AC06 Global Move retains rotation")
+ end
+ for _,entry in {{Enum.Axis.X,Vector3.xAxis},{Enum.Axis.Y,Vector3.yAxis},{Enum.Axis.Z,Vector3.zAxis}} do
+  local rotated=assert(Editor.rotate(oriented,entry[1],.7,"Global",root))
+  local actual,dimensions=Editor.transform(root,rotated)
+  local expected=CFrame.fromAxisAngle(entry[2],.7)*worldFrame.Rotation
+  check(near(actual.Position,worldFrame.Position) and dimensions==worldSize,"VH07 AC06 Global rotation preserves center and size")
+  check(near(actual.RightVector,expected.RightVector) and near(actual.UpVector,expected.UpVector),"VH07 AC06 Global rotation premultiplies world orientation")
+ end
  local depth=assert(Editor.drag(draft,"Resize",Enum.NormalId.Front,2))
  check(depth.Range==8 and depth.HitboxOffsetZ==0,"AC02 Front face extends outward while opposite back face stays fixed")
  local firstResize=assert(Editor.drag(oriented,"Resize",Enum.NormalId.Right,2))

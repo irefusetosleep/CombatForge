@@ -65,6 +65,8 @@ return function(sources)
    return module(path,actualServices,mapped,actualGlobals),common
   end
   local theme = module("Plugin/Theme.luau")
+  local keybinds=module("Plugin/Keybinds.luau")
+  if sources["Tests/Keybinds.spec.luau"] then table.insert(results,compile("Tests/Keybinds.spec.luau")(keybinds)) end
   if sources["Tests/VisualHitboxGeometry.spec.luau"] then
    local editor=module("Plugin/HitboxEditor.luau",{Selection={},RunService={},CoreGui={}},{AbilityConfig=parser})
    table.insert(results,compile("Tests/VisualHitboxGeometry.spec.luau")(editor,parser,linkedModule))
@@ -76,6 +78,20 @@ return function(sources)
   end
   local colourPicker = module("Plugin/ColourPicker.luau")
   local function uiLoader(services)
+   services=services or {}
+   local function signal()
+    local entries={}
+    return {Connect=function(_,callback) local e={callback=callback,active=true};table.insert(entries,e); return {Disconnect=function()e.active=false end} end,
+     Fire=function(_,...) for _,e in entries do if e.active then e.callback(...) end end end,
+     Count=function()local n=0;for _,e in entries do if e.active then n+=1 end end;return n end}
+   end
+   local input=services.UserInputService or {GetFocusedTextBox=function()return nil end}
+   for _,key in {"InputBegan","InputEnded","WindowFocusReleased","WindowFocused"} do input[key]=input[key] or signal() end
+   input.IsKeyDown=input.IsKeyDown or function()return false end
+   services.UserInputService=input
+   local run=services.RunService or {IsRunning=function()return false end}
+   run.GetPropertyChangedSignal=run.GetPropertyChangedSignal or function()return signal() end
+   services.RunService=run
    local actions = {}
    local source = assert(sources["Plugin/UI.luau"])
    local marker = "item.Activated:Connect(function() if not busy then action() end end)"
@@ -84,13 +100,13 @@ return function(sources)
    end)
    assert(replacements == 1, "UI callback instrumentation must match once")
    instrumented = instrumented:gsub("segment%.Activated:Connect%(function%(%)", "captureSegment(segment, function()")
-   local ui = module("Plugin/UI.luau", services, {AbilityConfig=parser, AbilityManager={}, Theme=theme, ColourPicker=colourPicker}, {
+   local ui = module("Plugin/UI.luau", services, {AbilityConfig=parser, AbilityManager={}, Theme=theme, ColourPicker=colourPicker, Keybinds=keybinds}, {
     actions=actions, captureSegment=function(segment, callback)
      actions[segment.Name]=callback
      return segment.Activated:Connect(callback)
     end,
    }, instrumented)
-   return ui, actions
+   return ui, actions, services
   end
   for _, path in {"Tests/TemplateMenu.spec.luau", "Tests/Menu.spec.luau", "Tests/SkillDeleteMenu.spec.luau"} do
    local ui, actions = uiLoader()
@@ -101,6 +117,7 @@ return function(sources)
    local ui,actions=uiLoader({UserInputService={GetFocusedTextBox=function() return if guards.focused then {} else nil end},RunService={IsRunning=function() return guards.running end}})
    table.insert(results,compile("Tests/VisualHitboxMenu.spec.luau")(ui,actions,parser,guards))
   end
+  if sources["Tests/EditorInput.spec.luau"] then table.insert(results,compile("Tests/EditorInput.spec.luau")(uiLoader,keybinds,theme,parser)) end
   table.insert(results, compile("Tests/Startup.spec.luau")(function(plugin, dependencies)
    return module("Plugin/Main.server.luau", nil, dependencies, {plugin=plugin,task={defer=function(callback) return {callback=callback} end,cancel=function() end}})
   end))

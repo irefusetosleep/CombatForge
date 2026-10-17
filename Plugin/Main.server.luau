@@ -13,6 +13,7 @@ local ExampleInstaller = require(script.ExampleInstaller)
 local TemplateInstaller = require(script.TemplateInstaller)
 local DummySpawner = require(script.DummySpawner)
 local HitboxEditor = require(script.HitboxEditor)
+local Keybinds = require(script.Keybinds)
 local toolbar = plugin:CreateToolbar("CombatForge")
 local icon = "rbxasset://textures/sparkle.png"
 local logo = "rbxassetid://118596951641724"
@@ -25,14 +26,6 @@ local connections: { RBXScriptConnection } = {}
 local widget: DockWidgetPluginGui? = nil
 local unloaded = false
 local editorUI = nil
-local hitboxActions = {}
-for _, name in { "TogglePreview", "Move", "Resize", "Rotate", "Undo" } do
- local action = plugin:CreatePluginAction("CombatForge.Hitbox." .. name, if name == "Undo" then "CombatForge Draft Undo" else "CombatForge Hitbox " .. name, "Edit the active CombatForge hitbox draft", "", true)
- table.insert(hitboxActions, action)
- table.insert(connections, action.Triggered:Connect(function()
-  if editorUI then editorUI.invoke(name) end
- end))
-end
 local iconTask: thread? = nil
 
 local function cleanup()
@@ -49,8 +42,6 @@ local function cleanup()
 	end
 	table.clear(connections)
 	if editorUI then editorUI.destroy(); editorUI = nil end
-	for _, action in hitboxActions do action:Destroy() end
-	table.clear(hitboxActions)
 	if widget then
 		widget:Destroy()
 	end
@@ -81,10 +72,10 @@ local success, failure = pcall(function()
 		return TemplateInstaller.install(script.HitboxTemplate, template, kind, aimMode)
 	end, {
 		isSupported = HitboxEditor.isSupported,
-		start = function(config, onChanged, onStopped, onStateChanged)
-			return HitboxEditor.start(plugin, config, onChanged, onStopped, onStateChanged)
+		start = function(config, onChanged, onStopped, onStateChanged, getShiftHeld)
+			return HitboxEditor.start(plugin, config, onChanged, onStopped, onStateChanged, getShiftHeld)
 		end,
-	})
+	}, Keybinds.new(plugin))
 
 	local function syncButton()
 		button:SetActive(createdWidget.Enabled)

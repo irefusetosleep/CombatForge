@@ -1,31 +1,32 @@
 # Current coordination state
 
-Task VISUAL-HITBOX-06: uniform/axis scale, preview and mode toggles, three-decimal
-numeric display, shorter lifecycle message, keyboard actions and draft Undo.
-Planner Astra Medium inspecting/writing spec. Coder/Tester/Reviewer follow in stages.
-Coordinator owns integration, actual Studio checks, installation and commit.
+VISUAL-HITBOX-07 completed: Settings keybinds, themed controls, Home/Back navigation,
+Shift Uniform resize and Global Axis move/rotation. Specification is
+coordination/specs/VISUAL-HITBOX-07.md; no open questions.
 
-User clarified undo: keep Save/Cancel drafts; add Undo button with separately assigned
-shortcut. Native Ctrl+Z remains saved-world undo, not intercepted. Actual guarded
-CoreGui-only history probe committed no undoable waypoint (top remained existing
-CombatForge.SaveHitbox); no Undo invoked, GUI removed. No world changes performed.
+Planner finalized seven acceptance criteria. Coder implemented production and docs;
+Tester owned independent fixtures and regressions; Reviewer remained read-only.
+Coordinator integrated, executed Studio checks and installed the local revision.
+All seven criteria passed their automated acceptance checks. Reviewer verdict:
+Approved based on available evidence.
 
-Preserve per-session drafts when preview is toggled off, current safe Save/history,
-source conflicts, offset/rotation compatibility, no persistent preview geometry.
-Shortcut actions should be assignable through Studio Customize Shortcuts; do not
-claim programmatic default chords unsupported by PluginAction API. Numeric formatting
-must not silently reduce stored precision of untouched values.
+Evidence: 1,967 full-harness assertions and 66 logo-startup assertions passed in
+Studio (2,033 total). Native engine checks verified world-aligned Move/Rotate handles,
+local restoration, box-local Shift Uniform resize, no modifier-only undo entry and
+cleanup. RunState signal connection/disconnection passed. Temporary WorldModels and
+CoreGui probes were removed. Build, package validation and diff checks passed.
 
-Base aee65c4 passed1441 checks with native pointer/Undo manually not run. Current task
-needs independent tests and final build/package/review before local installation.
-Final Planner spec sevenAC,noOpenquestions; user-selecteddraftUndo replacesCtrlZ. Coder owns HitboxEditor/UI/Main and TemplateSkills docs (Manager onlyifprecisionneeded); Tester ownsTests. Preview controller retainsdraft/history independentlyofvisibility; native5PluginActions assigned byuserCustomizeShortcuts. Uniform oppositefacecenter anchor; rawprecisionpreserved beneath3decimaldisplay.
+Review found a Play-transition key-capture defect. RunState cleanup and defensive
+input guards fixed it; independent tests verify capture cancellation and no Shift
+relatch during Play. Keybinds use a separate validated plugin setting; native
+Ctrl+Z/Y remain untouched. Prior five hitbox PluginActions are retired to prevent
+double dispatch; OpenEditor remains available.
 
-Completed VISUAL-HITBOX-06. AC01-07 implemented and covered by isolated tests.
-Final1830 fullharness assertions plus116LogoStartup=1946 passed inStudio. Latest
-focusedUI42assertions retested improvedbusyguard. Native engine controller factory,
-Resize/Uniform selection, off/on exactdraftretention and cleanup passed with isolated
-WorldModel removed. Build/package/defaultdiffcheck passed. Reviewer: Approved based
-on available evidence. Native shortcutdelivery/textfocus, pointerdrag and saved
-Undo/Redo not run. Installed via Install-Plugin.ps1 with backup/hash verification.
-User binds five actions via Customize Shortcuts; defaults not silently installed.
-User-approved dedicated draft Undo preserves Save/Cancel; Studio Ctrl+Z untouched.
+Installed with scripts/Install-Plugin.ps1, backup and matching hash. Existing saved
+Tools and runtime modules were preserved. No runtime/config schema changes.
+
+Manual checks NOT RUN: physical keyboard capture/delivery and Studio shortcut
+priority, pointer/ring direction, visual theme appearance, interactive navigation
+prompts and native Save Undo/Redo. Restart Studio, configure Settings keybinds,
+check Home/Back and Shift transforms. Changing Shift/root during a drag finishes
+that gesture safely; grab a handle again for the new coordinate mode.

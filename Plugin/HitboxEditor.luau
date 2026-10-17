@@ -47,7 +47,7 @@ function HitboxEditor.transform(rootCFrame: CFrame, draft): (CFrame, Vector3)
 	return rootCFrame * CFrame.new(center(draft)) * rotation(draft),
 		Vector3.new(draft.HitboxWidth, draft.HitboxHeight, draft.Range)
 end
-function HitboxEditor.drag(baseline, mode: string, face: Enum.NormalId, distance: number, scaleMode: string?)
+function HitboxEditor.drag(baseline, mode: string, face: Enum.NormalId, distance: number, scaleMode: string?, space: string?, rootCFrame: CFrame?)
 	if not validGeometry(baseline) or not finite(distance) then return nil, "Drag geometry must be finite and positive." end
 	local axis, sign
 	if face == Enum.NormalId.Right then axis = "X"; sign = 1
@@ -76,20 +76,25 @@ function HitboxEditor.drag(baseline, mode: string, face: Enum.NormalId, distance
 		if draft.HitboxWidth == baseline.HitboxWidth and draft.HitboxHeight == baseline.HitboxHeight and draft.Range == baseline.Range then return draft, nil end
 		displacement = (draft[key] - baseline[key]) / 2
 	else return nil, "Choose Move or Resize." end
-	setCenter(draft, center(baseline) + rotation(baseline):VectorToWorldSpace(normal * displacement))
+	local translation = if mode == "Move" and space == "Global" then (rootCFrame or CFrame.identity):VectorToObjectSpace(normal * displacement) else rotation(baseline):VectorToWorldSpace(normal * displacement)
+	setCenter(draft, center(baseline) + translation)
 	if not validGeometry(draft) then return nil, "Dragged geometry is not finite." end
 	return draft, nil
 end
-function HitboxEditor.rotate(baseline, axis: Enum.Axis, angle: number)
+function HitboxEditor.rotate(baseline, axis: Enum.Axis, angle: number, space: string?, rootCFrame: CFrame?)
 	if not validGeometry(baseline) or not finite(angle) then return nil, "Rotation must be finite." end
 	local direction = if axis == Enum.Axis.X then Vector3.xAxis elseif axis == Enum.Axis.Y then Vector3.yAxis elseif axis == Enum.Axis.Z then Vector3.zAxis else nil
 	if not direction then return nil, "Unknown rotation axis." end
 	local result = copy(baseline)
 	if angle % (2 * math.pi) == 0 then return result, nil end
-	local x, y, z = (rotation(baseline) * CFrame.fromAxisAngle(direction, angle % (2 * math.pi))):ToOrientation()
+	local change = CFrame.fromAxisAngle(direction, angle % (2 * math.pi))
+	local rootRotation = (rootCFrame or CFrame.identity).Rotation
+	local nextRotation = if space == "Global" then rootRotation:Inverse() * change * rootRotation * rotation(baseline) else rotation(baseline) * change
+	local x, y, z = nextRotation:ToOrientation()
 	result.HitboxRotationX = (math.deg(x) + 180) % 360 - 180
 	result.HitboxRotationY = (math.deg(y) + 180) % 360 - 180
 	result.HitboxRotationZ = (math.deg(z) + 180) % 360 - 180
+	if not validGeometry(result) then return nil, "Rotated geometry is not finite." end
 	return result, nil
 end
 function HitboxEditor.selectRoot(selection)
@@ -111,7 +116,7 @@ function HitboxEditor.selectRoot(selection)
 	if not root or not root:IsA("BasePart") then return nil, "The selected dummy needs a BasePart HumanoidRootPart." end
 	return root, nil
 end
-function HitboxEditor.start(plugin, config, onChanged, onStopped, onStateChanged)
+function HitboxEditor.start(plugin, config, onChanged, onStopped, onStateChanged, getShiftHeld)
 	if activeSession then activeSession.destroy() end
 	local draft, problem = HitboxEditor.newDraft(config)
 	if not draft then return nil, problem end
@@ -120,6 +125,8 @@ function HitboxEditor.start(plugin, config, onChanged, onStopped, onStateChanged
 	local objects, connections, lifetime = {}, {}, {}
 	local ended, visible = false, false
 	local mode, scaleMode = "Preview", "Axis"
+	local shiftHeld = false
+	local gestureRoot = nil
 	local baseline, dragAxis, dragMode, dragScale
 	local history = {}
 	local gui, proxy, box, handles, arcs
@@ -133,15 +140,15 @@ function HitboxEditor.start(plugin, config, onChanged, onStopped, onStateChanged
 	end
 	local function finishGesture()
 		if baseline and not equal(baseline, draft) then table.insert(history, baseline) end
-		baseline = nil; dragAxis = nil; dragMode = nil; dragScale = nil
+		baseline = nil; dragAxis = nil; dragMode = nil; dragScale = nil; gestureRoot = nil
 	end
 	function session.getDraft() return copy(draft) end
 	function session.getState()
-		return { visible = visible, mode = mode, scaleMode = scaleMode, canUndo = baseline ~= nil and not equal(baseline, draft) or #history > 0 }
+		return { visible = visible, mode = mode, scaleMode = scaleMode, shiftHeld = shiftHeld, space = if shiftHeld then "Global" else "Local", canUndo = baseline ~= nil and not equal(baseline, draft) or #history > 0 }
 	end
 	local function stopRendering(message)
 		finishGesture()
-		visible = false; mode = "Preview"
+		visible = false; mode = "Preview"; shiftHeld = false; scaleMode = "Axis"
 		for _, connection in connections do connection:Disconnect() end
 		table.clear(connections)
 		for index = #objects, 1, -1 do objects[index]:Destroy() end
@@ -164,7 +171,8 @@ function HitboxEditor.start(plugin, config, onChanged, onStopped, onStateChanged
 		for _, component in { frame:GetComponents() } do assert(finite(component), "Preview transform cannot be rendered.") end
 		proxy.Size = size
 		assert(proxy.Size == size, "This hitbox size is outside Studio preview limits; edit its config source instead.")
-		proxy.CFrame = frame; box.Size = size
+		proxy.CFrame = if shiftHeld and (mode == "Move" or mode == "Rotate") then CFrame.new(frame.Position) else frame
+		box.Size = size
 		box.CFrame = CFrame.new(center(draft)) * rotation(draft)
 	end
 	local function renderDraft()
@@ -173,13 +181,20 @@ function HitboxEditor.start(plugin, config, onChanged, onStopped, onStateChanged
 		if not ok then stopRendering("Could not render preview: " .. tostring(failure)) end
 		return ok
 	end
+	function session.setShiftHeld(value)
+		if ended then return false end
+		value = value == true
+		if shiftHeld == value then return true end
+		finishGesture(); shiftHeld = value; scaleMode = if value then "Uniform" else "Axis"
+		renderDraft(); notify(); return true
+	end
 	function session.setMode(value)
 		if ended or not visible then return false end
 		if value ~= "Preview" and value ~= "Move" and value ~= "Resize" and value ~= "Rotate" then return false end
 		finishGesture(); mode = value
 		handles.Visible = mode == "Move" or mode == "Resize"; arcs.Visible = mode == "Rotate"
 		handles.Style = if mode == "Move" then Enum.HandlesStyle.Movement else Enum.HandlesStyle.Resize
-		notify(); return true
+		renderDraft(); notify(); return true
 	end
 	function session.setScaleMode(value)
 		if ended or (value ~= "Axis" and value ~= "Uniform") then return false end
@@ -202,7 +217,8 @@ function HitboxEditor.start(plugin, config, onChanged, onStopped, onStateChanged
 	local function listen(signal, callback) table.insert(connections, signal:Connect(callback)) end
 	local function beginGesture(axis, rotationGesture)
 		if ended or not visible or (rotationGesture and mode ~= "Rotate") or (not rotationGesture and mode ~= "Move" and mode ~= "Resize") then return end
-		finishGesture(); baseline = copy(draft); dragAxis = axis; dragMode = mode; dragScale = scaleMode
+		if getShiftHeld then session.setShiftHeld(getShiftHeld()) end
+		finishGesture(); baseline = copy(draft); dragAxis = axis; dragMode = mode; dragScale = scaleMode; gestureRoot = reference.CFrame
 	end
 	local function endGesture(axis, rotationGesture)
 		if not visible or dragAxis ~= axis or dragMode ~= mode or (rotationGesture and mode ~= "Rotate") or (not rotationGesture and mode ~= "Move" and mode ~= "Resize") then return end
@@ -211,9 +227,11 @@ function HitboxEditor.start(plugin, config, onChanged, onStopped, onStateChanged
 	local function drag(axis, amount, rotationGesture)
 		if ended or not visible or not baseline or dragAxis ~= axis or dragMode ~= mode or dragScale ~= scaleMode
 			or (rotationGesture and mode ~= "Rotate") or (not rotationGesture and mode ~= "Move" and mode ~= "Resize") then return end
+		if gestureRoot ~= reference.CFrame then finishGesture(); notify(); return end
 		local changed, failure
-		if rotationGesture then changed, failure = HitboxEditor.rotate(baseline, axis, amount)
-		else changed, failure = HitboxEditor.drag(baseline, mode, axis, amount, scaleMode) end
+		local space = if shiftHeld then "Global" else "Local"
+		if rotationGesture then changed, failure = HitboxEditor.rotate(baseline, axis, amount, space, gestureRoot)
+		else changed, failure = HitboxEditor.drag(baseline, mode, axis, amount, scaleMode, space, gestureRoot) end
 		if not changed then stopRendering(failure); return end
 		local previous = draft; draft = changed
 		local rendered, renderError = pcall(refresh)
@@ -260,6 +278,7 @@ function HitboxEditor.start(plugin, config, onChanged, onStopped, onStateChanged
 			listen(RunService.RenderStepped, function()
 				if RunService:IsRunning() then stopRendering("Preview Ended"); return end
 				if not reference:IsDescendantOf(workspace) or reference.Parent ~= model or humanoid.Parent ~= model then stopRendering("Preview Ended"); return end
+				if baseline and gestureRoot ~= reference.CFrame then finishGesture(); notify() end
 				renderDraft()
 			end)
 			listen(plugin.Deactivation, function() if visible then stopRendering("Preview Ended") end end)

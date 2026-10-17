@@ -6,9 +6,33 @@ local Theme = require(script.Parent.Theme)
 local ColourPicker = require(script.Parent.ColourPicker)
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
+local Keybinds = require(script.Parent.Keybinds)
 
-function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), preferences: typeof(Theme.new())?, installHitbox: (() -> (boolean, string))?, installExample: (() -> (boolean, string))?, spawnDummy: ((Enum.HumanoidRigType) -> (boolean, string))?, createTemplate: ((string, string) -> (boolean, string))?, hitboxEditor: any?)
+function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), preferences: typeof(Theme.new())?, installHitbox: (() -> (boolean, string))?, installExample: (() -> (boolean, string))?, spawnDummy: ((Enum.HumanoidRigType) -> (boolean, string))?, createTemplate: ((string, string) -> (boolean, string))?, hitboxEditor: any?, keybindPreferences: any?)
+ local previewSession = nil
  local settings = preferences or Theme.new()
+ local keybinds = keybindPreferences or Keybinds.new()
+ local captureAction, captureFeedback = nil, nil
+ local keybindCaptureCommit = nil
+ local promptActive = false
+ local held = {}
+ local focused = true
+ local inputConnections = {}
+ local invokeAction
+ local function cancelCapture()
+  captureAction = nil
+  keybindCaptureCommit = nil
+  if captureFeedback and captureFeedback.Parent then captureFeedback.Text = "Shortcut capture cancelled." end
+  captureFeedback = nil
+ end
+ local function down(key)
+  local ok, result = pcall(function() return UserInputService:IsKeyDown(key) end)
+  return if ok then result else held[key] == true
+ end
+ local function shiftDown() return focused and (down(Enum.KeyCode.LeftShift) or down(Enum.KeyCode.RightShift)) end
+ local function syncShift()
+  if previewSession then previewSession.setShiftHeld(widget.Enabled and focused and previewSession.getState().visible and not RunService:IsRunning() and shiftDown()) end
+ end
  local palette = Theme.palette(settings.get())
  local root = Instance.new("ScrollingFrame")
  root.Name = "CombatForgeRoot"
@@ -27,7 +51,6 @@ function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), 
  local dummyRigType = Enum.HumanoidRigType.R6
  local projectileAim = "Mouse"
  local order = 0
- local previewSession = nil
  local pageActions = nil
  local function numberText(value)
   local text = string.format("%.3f", value)
@@ -37,6 +60,7 @@ function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), 
   if previewSession then previewSession.destroy(); previewSession = nil end
  end
  local function reset()
+  cancelCapture(); promptActive = false; table.clear(held)
   pageActions = nil
   closePreview()
   palette = Theme.palette(settings.get())
@@ -126,10 +150,45 @@ function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), 
  showSettings = function(message)
   reset()
   label("Heading", "Settings", 24)
-  button("Back", "Main menu", showMenu)
+  button("Home", "Home", showMenu)
+  button("Back", "Back", showMenu)
   local current = settings.get()
   label("CurrentTheme", "Current theme: " .. current.mode, 16)
   local status = label("Status", message or "Choose a theme. Custom colours are applied when you save.", 14)
+  label("KeybindHeading", "Hitbox keybinds", 20)
+  label("KeybindHelp", "Change captures a letter or digit with optional Ctrl/Alt. Escape cancels. Shift is reserved for transforms; Ctrl+Z/Y remain Studio Undo/Redo. If a Studio shortcut shares a chord, change it in one place. CombatForge does not consume native shortcuts.", 14)
+  local keybindStatus = label("KeybindStatus", keybinds.getError() or "Changes save immediately, independently of your theme.", 14)
+  local names = { TogglePreview = "Toggle Preview", Move = "Move", Resize = "Resize", Rotate = "Rotate", Undo = "Draft Undo" }
+  local rows = {}
+  local function refreshBindings()
+   local bindings = keybinds.get()
+   for _, action in Keybinds.actions do rows[action].Text = names[action] .. ": " .. Keybinds.format(bindings[action]) end
+  end
+  for _, action in Keybinds.actions do
+   rows[action] = label("Keybind" .. action, "", 14)
+   button("ChangeKeybind" .. action, "Change " .. names[action], function()
+    cancelCapture(); captureAction = action; captureFeedback = keybindStatus
+    keybindCaptureCommit = function(chord)
+     local ok, result = keybinds.set(action, chord)
+     keybindStatus.Text = result; keybindStatus.TextColor3 = if ok then palette.text else red
+     refreshBindings(); return ok
+    end
+    keybindStatus.Text = "Press a letter or digit for " .. names[action] .. "; Escape cancels."
+   end)
+   button("ClearKeybind" .. action, "Clear " .. names[action], function()
+    cancelCapture()
+    local ok, result = keybinds.set(action, false)
+    keybindStatus.Text = result; keybindStatus.TextColor3 = if ok then palette.text else red
+    refreshBindings()
+   end)
+  end
+  button("ResetKeybinds", "Reset keybind defaults", function()
+   cancelCapture()
+   local ok, result = keybinds.reset()
+   keybindStatus.Text = result; keybindStatus.TextColor3 = if ok then palette.text else red
+   refreshBindings()
+  end)
+  refreshBindings()
   for _, mode in { "Dark", "Light", "Custom" } do
    button("Theme" .. mode, mode .. (if mode == current.mode then " (selected)" else ""), function()
     local candidate = settings.get()
@@ -215,20 +274,25 @@ function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), 
   local initial = if snapshot then snapshot.config else { Name = "LightAttack", Damage = 20, Cooldown = 0.5, Range = 5 }
   local dirty = false
   local confirmation: { GuiObject } = {}
-  button("Back", if snapshot then "Back to skills" else "Main menu", function()
+  local pendingDestination = nil
+  local function navigate(destination)
    if dirty then
+    pendingDestination = destination; promptActive = true
     for _, item in confirmation do item.Visible = true end
     root.CanvasPosition = Vector2.zero
-   else
-    if snapshot then showList() else showMenu() end
-   end
-  end)
+   else destination() end
+  end
+  button("Home", "Home", function() navigate(showMenu) end)
+  button("Back", "Back", function() navigate(if snapshot then showList else showMenu) end)
   table.insert(confirmation, label("DiscardPrompt", "You have unsaved changes. Discard them?", 14))
   table.insert(confirmation, button("KeepEditing", "Keep editing", function()
+   promptActive = false; pendingDestination = nil
    for _, item in confirmation do item.Visible = false end
   end))
   table.insert(confirmation, button("DiscardChanges", "Discard changes", function()
-   if snapshot then showList() else showMenu() end
+   local destination = pendingDestination
+   promptActive = false; pendingDestination = nil
+   if destination then destination() end
   end))
   for _, item in confirmation do item.Visible = false end
   local name = field("Name", "Skill name", initial.Name)
@@ -298,19 +362,21 @@ function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), 
  showHitbox = function(snapshot)
   reset()
   label("Heading", "Edit Hitbox: " .. snapshot.name, 24)
-  label("HitboxInstructions", "Preview starts with the selected dummy. Toggle Preview hides or resumes your draft. Move, Resize and Rotate toggle their handles. Axis resize moves one face; Uniform preserves proportions, anchoring the opposite face center. Save keeps the draft; Cancel discards it.", 14)
-  label("HitboxShortcuts", "Assign shortcuts in Studio Customize Shortcuts: Toggle Preview Ctrl+Alt+P; Move Ctrl+Alt+M; Resize Ctrl+Alt+S; Rotate Ctrl+Alt+R; Draft Undo Ctrl+Alt+Z. These are recommendations, not installed bindings. Ctrl+Z remains Studio Undo.", 14)
+  label("HitboxInstructions", "Preview starts with the selected dummy. Toggle Preview hides or resumes your draft. Move, Resize and Rotate toggle their handles. Hold Shift for Uniform Resize or Global Move/Rotate. Uniform anchors the opposite face center. Save keeps the draft; Cancel discards it.", 14)
+  label("HitboxShortcuts", "Configure local keybinds in CombatForge Settings. Defaults: Ctrl+Alt+P/M/S/R/Z for preview, Move, Resize, Rotate and draft Undo. Studio Ctrl+Z is unchanged. If a Studio shortcut uses the same chord, change one binding.", 14)
   local readout = label("HitboxReadout", "No preview started.", 14)
   local status = label("HitboxStatus", "Changes remain a draft until Save.", 14)
   local controls = {}
-  local activeColor, inactiveColor = Color3.fromRGB(25, 160, 70), Color3.new(0, 0, 0)
+  local modifierReadout = nil
+  local activeColor, inactiveColor = palette.accent, palette.surface
   local function updateState(state)
    if not status.Parent then return end
    for key, control in controls do
-    local selected = if key == "TogglePreview" then state.visible elseif key == "Axis" or key == "Uniform" then state.scaleMode == key else state.visible and state.mode == key
+    local selected = if key == "TogglePreview" then state.visible else state.visible and state.mode == key
     control.BackgroundColor3 = if selected then activeColor else inactiveColor
-    control.TextColor3 = Color3.new(1, 1, 1)
+    control.TextColor3 = if selected then palette.accentText else palette.text
    end
+   if modifierReadout then modifierReadout.Text = if state.shiftHeld then "Shift held: Global Move/Rotate; Uniform Resize. Release and grab again after changing Shift." else "Local Move/Rotate; Axis Resize. Hold Shift for Global axes or Uniform Resize; changing Shift ends the drag." end
    if controls.Undo then
     controls.Undo.Active = state.canUndo
     controls.Undo.AutoButtonColor = state.canUndo
@@ -321,6 +387,31 @@ function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), 
    if not readout.Parent then return end
    readout.Text = "Size: " .. numberText(draft.HitboxWidth) .. " x " .. numberText(draft.HitboxHeight) .. " x " .. numberText(draft.Range) .. " studs\nLocal offset: X " .. numberText(draft.HitboxOffsetX) .. ", Y " .. numberText(draft.HitboxOffsetY) .. ", Z " .. numberText(draft.HitboxOffsetZ) .. " studs\nRotation: X " .. numberText(draft.HitboxRotationX or 0) .. ", Y " .. numberText(draft.HitboxRotationY or 0) .. ", Z " .. numberText(draft.HitboxRotationZ or 0) .. " degrees"
   end
+  local initialDraft = nil
+  local navigationPrompt = {}
+  local pendingDestination = nil
+  local function navigate(destination)
+   local current = if previewSession then previewSession.getDraft() else nil
+   local dirty = false
+   if current and initialDraft then
+    for key, value in initialDraft do if current[key] ~= value then dirty = true; break end end
+   end
+   if not dirty then destination(); return end
+   pendingDestination = destination; promptActive = true
+   for _, item in navigationPrompt do item.Visible = true end
+  end
+  button("Home", "Home", function() navigate(showMenu) end)
+  button("Back", "Back", function() navigate(function() showForm(snapshot) end) end)
+  table.insert(navigationPrompt, label("DiscardPrompt", "Discard your unsaved hitbox changes?", 14))
+  table.insert(navigationPrompt, button("KeepEditing", "Keep editing", function()
+   promptActive = false; pendingDestination = nil
+   for _, item in navigationPrompt do item.Visible = false end
+  end))
+  table.insert(navigationPrompt, button("DiscardChanges", "Discard changes", function()
+   local destination = pendingDestination; promptActive = false; pendingDestination = nil
+   if destination then destination() end
+  end))
+  for _, item in navigationPrompt do item.Visible = false end
   local actions = {}
   actions.TogglePreview = function()
    if not previewSession then return end
@@ -338,12 +429,7 @@ function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), 
    end
    controls[mode] = button("Hitbox" .. mode, mode, actions[mode])
   end
-  label("HitboxScaleHelp", "Resize scale", 14)
-  for _, scale in { "Axis", "Uniform" } do
-   controls[scale] = button("HitboxScale" .. scale, scale, function()
-    if previewSession then previewSession.setScaleMode(scale) end
-   end)
-  end
+  modifierReadout = label("HitboxModifier", "Local axes. Hold Shift: global Move/Rotate or Uniform Resize. Release and grab again after changing Shift mid-drag.", 14)
   actions.Undo = function() if previewSession then previewSession.undo() end end
   controls.Undo = button("UndoHitbox", "Undo", actions.Undo)
   button("SaveHitbox", "Save", function()
@@ -370,14 +456,16 @@ function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), 
   pageActions = actions
   local session, message = hitboxEditor.start(snapshot.config, changed, function(reason)
    if status.Parent then status.Text = reason; status.TextColor3 = if reason == "Preview Ended" then palette.text else red end
-  end, updateState)
+  end, updateState, shiftDown)
   previewSession = session
   status.Text = message or "Could not initialize editor."; status.TextColor3 = if session and session.getState().visible then palette.text else red
-  if session then updateState(session.getState()) end
+  if session then initialDraft = session.getDraft(); updateState(session.getState()) end
  end
  local function showDelete(module: ModuleScript, expectedName: string)
   reset()
   label("Heading", "Delete " .. expectedName .. "?", 24)
+  button("Home", "Home", showMenu)
+  button("Back", "Back", function() showList() end)
   label("DeleteHelp", "This removes the skill from CombatForge. You can undo the deletion with Ctrl+Z.", 14)
   local resolved = false
   local status: TextLabel
@@ -408,7 +496,8 @@ function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), 
  showList = function(message)
   reset()
   label("Heading", "Update Skills", 24)
-  button("Back", "Main menu", showMenu)
+  button("Home", "Home", showMenu)
+  button("Back", "Back", showMenu)
   button("Refresh", "Refresh list", showList)
   local status = label("Status", message or "Select a skill to edit its settings.", 14)
   if message then status.TextColor3 = green end
@@ -460,7 +549,8 @@ function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), 
  local function showTemplates()
   reset()
   label("Heading", "Template Skills", 24)
-  button("Back", "Main menu", showMenu)
+  button("Home", "Home", showMenu)
+  button("Back", "Back", showMenu)
   local status: TextLabel
   local function create(kind: string)
    if not createTemplate then return end
@@ -615,7 +705,10 @@ function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), 
  local visibility = nil
  if widget:IsA("PluginGui") or widget:IsA("ScreenGui") then
   visibility = widget:GetPropertyChangedSignal("Enabled"):Connect(function()
-   if not widget.Enabled and previewSession then previewSession.setPreviewVisible(false) end
+   if not widget.Enabled then
+    cancelCapture(); table.clear(held)
+    if previewSession then previewSession.setShiftHeld(false); previewSession.setPreviewVisible(false) end
+   end
   end)
  end
  root.Destroying:Connect(function()
@@ -623,14 +716,63 @@ function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), 
   if visibility then visibility:Disconnect() end
  end)
  showMenu()
- return {
-  invoke = function(action)
-   if busy or not root.Parent or not widget.Enabled or not pageActions or RunService:IsRunning() or UserInputService:GetFocusedTextBox() then return false end
-   local callback = pageActions[action]
-   if not callback then return false end
-   callback(); return true
-  end,
-  destroy = function() pageActions = nil; closePreview() end,
- }
+ invokeAction = function(action)
+  if busy or promptActive or captureAction or not focused or not root.Parent or not widget.Enabled or not pageActions or RunService:IsRunning() or UserInputService:GetFocusedTextBox() then return false end
+  local callback = pageActions[action]
+  if not callback then return false end
+  callback(); return true
+ end
+ local digits = { Zero = "0", One = "1", Two = "2", Three = "3", Four = "4", Five = "5", Six = "6", Seven = "7", Eight = "8", Nine = "9" }
+ local function modifiers()
+  return down(Enum.KeyCode.LeftControl) or down(Enum.KeyCode.RightControl), down(Enum.KeyCode.LeftAlt) or down(Enum.KeyCode.RightAlt), shiftDown()
+ end
+ table.insert(inputConnections, UserInputService.InputBegan:Connect(function(input, processed)
+  local key = input.KeyCode
+  if held[key] then return end
+  held[key] = true
+  syncShift()
+  if captureAction and (not focused or not widget.Enabled or not root.Parent or RunService:IsRunning()) then cancelCapture(); table.clear(held); return end
+  if captureAction then
+   if key == Enum.KeyCode.Escape then cancelCapture(); return end
+   local name = digits[key.Name] or key.Name
+   local ctrl, alt, shift = modifiers()
+   local chord, problem = Keybinds.chord(name, ctrl, alt, shift)
+   if not chord then if captureFeedback then captureFeedback.Text = problem end; return end
+   local commit = keybindCaptureCommit
+   if commit and commit(chord) then captureAction = nil; captureFeedback = nil; keybindCaptureCommit = nil end
+   return
+  end
+  if processed then return end
+  local ctrl, alt, shift = modifiers()
+  local name = digits[key.Name] or key.Name
+  for _, action in Keybinds.actions do
+   if Keybinds.matches(keybinds.get()[action], name, ctrl, alt, shift) then invokeAction(action); break end
+  end
+ end))
+ table.insert(inputConnections, UserInputService.InputEnded:Connect(function(input)
+  held[input.KeyCode] = nil; syncShift()
+ end))
+ table.insert(inputConnections, RunService:GetPropertyChangedSignal("RunState"):Connect(function()
+  if RunService:IsRunning() then
+   cancelCapture(); table.clear(held)
+   if previewSession then previewSession.setShiftHeld(false) end
+  end
+ end))
+ table.insert(inputConnections, UserInputService.WindowFocusReleased:Connect(function()
+  focused = false; table.clear(held); cancelCapture()
+  if previewSession then previewSession.setShiftHeld(false) end
+ end))
+ table.insert(inputConnections, UserInputService.WindowFocused:Connect(function()
+  focused = true; table.clear(held); syncShift()
+ end))
+ local destroyed = false
+ local function dispose()
+  if destroyed then return end
+  destroyed = true; pageActions = nil; cancelCapture(); table.clear(held); closePreview()
+  for _, connection in inputConnections do connection:Disconnect() end
+  table.clear(inputConnections)
+ end
+ root.Destroying:Connect(dispose)
+ return { invoke = invokeAction, destroy = dispose }
 end
 return UI

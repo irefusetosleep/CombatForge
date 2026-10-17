@@ -43,11 +43,7 @@ return function(loadMain)
      check(allowBinding and initial==fallback,"Shortcut created with built-in fallback")
      return {Triggered=trigger,Destroy=function() actionDestroyed=true end}
     end
-    check(id:match("^CombatForge%.Hitbox%.") and allowBinding and initial=="" and not draftActions[id],"Five bindable draft actions need no branded icon")
-    local item={Triggered=signal(),destroyed=false}
-    function item:Destroy() self.destroyed=true end
-    draftActions[id]=item
-    return item
+    error("Retired native hitbox action created: "..id)
    end,
    CreateDockWidgetPluginGuiAsync=function() return widget end,
   }
@@ -62,14 +58,14 @@ return function(loadMain)
    local job={callback=callback,cancelled=false}; table.insert(jobs,job); return job
   end
   loadMain(plugin,{
-   UI={mount=function() mounts+=1; return {invoke=function() end,destroy=function() disposedUI+=1 end} end},Theme={new=function() return {} end},AbilityManager={},
+   UI={mount=function() mounts+=1; return {invoke=function() end,destroy=function() disposedUI+=1 end} end},Theme={new=function() return {} end},AbilityManager={},Keybinds={new=function() return {} end},
    RuntimeInstaller={},ExampleInstaller={},TemplateInstaller={},DummySpawner={},HitboxEditor={isSupported=function() return false end,start=function() return nil end},
   },{
    game={GetService=function(_,name) assert(name=="ContentProvider","Unexpected startup service"); return provider end},
    task={defer=enqueue,spawn=enqueue,cancel=function(job) cancels+=1; job.cancelled=true end},
   })
   local draftCount=0; for _ in draftActions do draftCount+=1 end
-  check(draftCount==5,"Exactly five draft actions coexist with branded open action")
+  check(draftCount==0,"Only branded OpenEditor action remains")
   check(mounts==1 and preloads==0 and icon==fallback,"Startup completes before asynchronous preload result")
   click.Fire(); check(widget.Enabled,"Toolbar works before preload result")
   click.Fire(); trigger.Fire(); check(widget.Enabled and mounts==1,"Shortcut opens the same editor before preload")

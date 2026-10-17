@@ -189,12 +189,12 @@ manually port its updated GetConfig, Validate and Cast to consume rotation.
 
 ### Preview controls, scaling and draft Undo
 
-Toggle Preview shows the retained draft in green/on or black/off. Move, Resize
+Toggle Preview shows the retained draft using the theme accent when on and surface when off. Move, Resize
 and Rotate are mutually exclusive toggles; clicking the active tool hides its
 handles. Turning preview off clears tools but preserves geometry and draft undo.
-Axis scaling moves one face and holds its opposite face fixed. Uniform scales all
+Without Shift, Resize moves one face and holds its opposite face fixed. Shift scales all
 three dimensions proportionally while holding the opposite face center fixed;
-the other corners of that face may move. Axis is the default. Each completed
+the other corners of that face may move. Release Shift to restore single-axis scaling. Each completed
 geometry gesture is one local Undo step. Undo also works with preview off; during
 a drag it restores the drag's starting geometry. Preview/tool/scale toggles are not
 history edits. Save creates the normal single config Undo record; Cancel discards
@@ -204,8 +204,28 @@ Numbers display three decimal places without rounding untouched stored values.
 Normal preview termination reads `Preview Ended`; errors retain specific guidance
 and leave valid draft geometry available for retry or Save.
 
-Five actions appear in Studio **Customize Shortcuts**. Recommended bindings are
-Toggle Preview Ctrl+Alt+P, Move Ctrl+Alt+M, Resize Ctrl+Alt+S, Rotate Ctrl+Alt+R and
-Draft Undo Ctrl+Alt+Z. Bind these yourself; the plugin does not install defaults or
-replace Studio Ctrl+Z. Actions are inert outside the visible Edit Hitbox page,
-during Play, saves and text editing. Assign conflicts through Customize Shortcuts.
+Configure five local bindings in **CombatForge Settings**: Toggle Preview, Move,
+Resize, Rotate and Draft Undo. Defaults are Ctrl+Alt+P/M/S/R/Z. Change captures a
+letter or digit with optional Ctrl/Alt; Escape cancels. Clear unassigns one binding;
+Reset defaults resets only keybinds. Changes persist immediately independently of
+theme settings. Shift is reserved for transforms, duplicate chords are refused,
+and Ctrl+Z/Y remain Studio Undo/Redo. No native shortcut is consumed or reassigned;
+if a Studio shortcut shares a chord, change one binding. Local shortcuts are inert
+outside the visible visual editor, during Play, saves, text editing and discard prompts.
+
+
+### Shift transforms and navigation
+
+Move/Resize/Rotate and preview toggles use the current theme accent when selected.
+Move and Rotate normally follow box-local axes. Hold either Shift for world-aligned
+Move/Rotate, or proportional Uniform Resize with the opposite face center anchored.
+The box orientation remains unchanged when only switching coordinate space.
+Changing Shift or the reference root frame during a drag finishes that gesture;
+release and grab the handle again to continue without a jump. Focus loss, hiding,
+Play and editor exit reset modifier state. No modifier is saved in the skill.
+
+Home always opens the main menu. Back follows visual editor -> selected skill ->
+Update Skills list -> menu; Settings, Create and Templates return to the menu.
+Dirty common or visual drafts ask Keep editing or Discard changes and retain the
+requested destination. Keep editing preserves draft/history/preview; explicit
+Cancel discards the visual draft. Save failures retain the page and draft.

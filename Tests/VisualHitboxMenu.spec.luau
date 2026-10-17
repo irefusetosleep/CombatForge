@@ -2,7 +2,7 @@
 return function(UI,actions,Config,guards)
  local count=0
  local function check(value,message) assert(value,message); count+=1 end
- local black=Color3.new(0,0,0)
+ local black=Color3.fromRGB(30,33,40) -- inactive theme surface; palette test separately uses injected themes
  local host=Instance.new("ScreenGui"); host.Enabled=true
  local target=Instance.new("ModuleScript"); target.Name="MenuMelee"
  local data={Name=target.Name,Damage=20.123456789,Cooldown=.750123456,Range=6.987654321,AnimationId="",HitDelay=0,HitboxWidth=5,HitboxHeight=5}
@@ -40,6 +40,7 @@ return function(UI,actions,Config,guards)
     return true
    end,
    setMode=function(mode) state.mode=mode; notify(); return true end,
+   setShiftHeld=function(value) state.shiftHeld=value; state.space=if value then "Global" else "Local";state.scaleMode=if value then "Uniform" else "Axis";notify();return true end,
    setScaleMode=function(mode) state.scaleMode=mode; notify(); return true end,
    undo=function() if not state.canUndo then return false end; state.canUndo=false; draft.HitboxWidth=8.123456789; notify(); return true end,
    destroy=function() if not ended then ended=true; destroys+=1; state.visible=false end end}
@@ -60,20 +61,17 @@ return function(UI,actions,Config,guards)
   actions.EditHitbox()
   check(starts==1 and state.visible and state.mode=="Preview","AC01 Entry starts one visible preview without tools")
   check(root.ToggleHitboxPreview.Text=="Toggle Preview" and root:FindFirstChild("StartHitboxPreview")==nil and root:FindFirstChild("HitboxPreview")==nil,"AC01/02 Exact toggle label; obsolete preview buttons removed")
-  check(root.ToggleHitboxPreview.BackgroundColor3.G>root.ToggleHitboxPreview.BackgroundColor3.R and root.ToggleHitboxPreview.BackgroundColor3.G>root.ToggleHitboxPreview.BackgroundColor3.B and root.ToggleHitboxPreview.BackgroundColor3~=black and root.HitboxMove.BackgroundColor3==black and root.HitboxResize.BackgroundColor3==black and root.HitboxRotate.BackgroundColor3==black,"AC01/02 Preview green and inactive tools black")
+  check(root.ToggleHitboxPreview.BackgroundColor3~=root.HitboxMove.BackgroundColor3,"AC03 Selected/inactive controls distinct palette roles")
   check(root.HitboxReadout.Text:find("9.123 x 7.000 x 12.988",1,true) and root.HitboxReadout.Text:find("X 0.000",1,true) and not root.HitboxReadout.Text:find("-0.000",1,true) and root.HitboxReadout.Text:find("31.457",1,true),"AC04 Size/offset/rotation readouts three decimals with normalized negative zero")
-  check(root.HitboxScaleAxis.BackgroundColor3~=black and root.HitboxScaleUniform.BackgroundColor3==black,"AC03 Axis visibly selected initially")
+  check(root:FindFirstChild("HitboxScaleAxis")==nil and root:FindFirstChild("HitboxScaleUniform")==nil,"AC05 Explicit scale buttons removed")
   check(not root.UndoHitbox.Active,"AC06 Empty history visibly unavailable")
-  check(root.HitboxShortcuts.Text:find("Customize Shortcuts",1,true) and root.HitboxShortcuts.Text:find("Ctrl+Alt+Z",1,true) and root.HitboxShortcuts.Text:find("Ctrl+Z",1,true),"AC05 Shortcut help distinguishes recommended draft binding and Studio Undo")
-  actions.HitboxMove(); check(state.mode=="Move" and root.HitboxMove.BackgroundColor3~=black,"AC02 Move on green")
-  actions.HitboxMove(); check(state.mode=="Preview" and root.HitboxMove.BackgroundColor3==black,"AC02 Active Move toggles off")
-  mounted.invoke("Resize"); check(state.mode=="Resize" and root.HitboxResize.BackgroundColor3~=black,"AC05 Shortcut uses same Resize transition")
-  actions.HitboxRotate(); check(state.mode=="Rotate" and root.HitboxResize.BackgroundColor3==black,"AC02 Selecting Rotate disables Resize")
-  actions.HitboxScaleUniform(); check(state.scaleMode=="Uniform" and root.HitboxScaleUniform.BackgroundColor3~=black and root.HitboxScaleAxis.BackgroundColor3==black,"AC03 Uniform selected visibly")
-  actions.HitboxScaleAxis(); check(state.scaleMode=="Axis","AC03 Axis selection dispatch")
+  actions.HitboxMove(); check(state.mode=="Move","AC02 Move on green")
+  actions.HitboxMove(); check(state.mode=="Preview","AC02 Active Move toggles off")
+  mounted.invoke("Resize"); check(state.mode=="Resize","AC05 Shortcut uses same Resize transition")
+  actions.HitboxRotate(); check(state.mode=="Rotate","AC02 Selecting Rotate disables Resize")
   state.canUndo=true; notify()
   actions.ToggleHitboxPreview()
-  check(not state.visible and state.mode=="Preview" and root.ToggleHitboxPreview.BackgroundColor3==black and root.HitboxStatus.Text=="Preview Ended" and starts==1 and destroys==0,"AC01/04 Off retains controller and sets exact status")
+  check(not state.visible and state.mode=="Preview" and root.HitboxStatus.Text=="Preview Ended" and starts==1 and destroys==0,"AC01/04 Off retains controller and sets exact status")
   actions.UndoHitbox(); check(not state.canUndo and root.HitboxReadout.Text:find("8.123",1,true),"AC06 Undo available while preview off refreshes readout")
   actions.UndoHitbox(); check(not state.canUndo,"AC06 Empty Undo safe no-op")
   mounted.invoke("TogglePreview"); check(state.visible and state.mode=="Preview" and starts==1,"AC01/05 Shortcut resumes same draft controller")
@@ -92,7 +90,7 @@ return function(UI,actions,Config,guards)
   check(destroys==1 and root.RangeInput.Text=="12.988" and root.Status.Text=="Saved visual geometry.","AC04/06 Successful Save closes controller and formats common depth")
   check(not mounted.invoke("Move"),"AC05 Dispatcher inert after returning common editor")
   selectionValid=false; actions.EditHitbox()
-  check(starts==2 and not state.visible and root.ToggleHitboxPreview.BackgroundColor3==black,"AC01 Invalid selection off and retryable")
+  check(starts==2 and not state.visible,"AC01 Invalid selection off and retryable")
   actions.ToggleHitboxPreview(); check(not state.visible,"AC01 Failed retry preserves off state")
   selectionValid=true; actions.ToggleHitboxPreview(); check(state.visible and starts==2,"AC01 Valid retry uses retained controller")
   host.Enabled=false; task.wait()
