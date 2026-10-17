@@ -1,0 +1,4 @@
+interface:
+  display_name: "CombatForge Feature Workflow"
+  short_description: "Plan, implement, test, and review CombatForge features"
+  default_prompt: "Use the CombatForge feature workflow for this request."
