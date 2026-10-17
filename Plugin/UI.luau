@@ -127,7 +127,7 @@ function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), 
   item.Text = text
   if name == "Home" or name == "Back" then
    item.Name = name; item.Size = UDim2.fromOffset(90, 36)
-   item.Position = UDim2.fromOffset(if name == "Home" then 12 else 112, 12)
+   item.Position = UDim2.fromOffset(if name == "Back" then 12 else 112, 12)
    item.BackgroundColor3 = palette.accent; item.TextColor3 = palette.accentText
    item.Parent = navigation
   elseif parent then
@@ -403,14 +403,15 @@ function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), 
      showHitbox(snapshot)
     end)
    else
-    label("HitboxHelp", "Visual hitbox editing supports complete melee box configs only. Projectile and custom configs are not supported.", 14)
+    label("HitboxHelp", "Visual hitbox editing supports complete melee box and projectile sphere configs. Mixed, partial and custom configs are not supported.", 14)
    end
   end
  end
  showHitbox = function(snapshot)
   reset()
+  local projectile = AbilityConfig.hitboxKind(snapshot.config) == "Projectile"
   label("Heading", "Edit Hitbox: " .. snapshot.name, 24)
-  label("HitboxInstructions", "Preview starts with the selected dummy. Toggle Preview hides or resumes your draft. Move, Resize and Rotate toggle their handles. Hold Shift for Uniform Resize or Global Move/Rotate. Uniform anchors the opposite face center. Save keeps the draft; Back asks before discarding changes.", 14)
+  label("HitboxInstructions", if projectile then "Preview shows the collision sphere at projectile launch, centered on the selected dummy root. Resize changes radius uniformly around its fixed center. Range is travel distance in the common form; this is not a path preview. Move and Rotate do not apply: launch position is runtime-defined and a sphere has no direction. Shift does not change sphere resizing." else "Preview starts with the selected dummy. Toggle Preview hides or resumes your draft. Move, Resize and Rotate toggle their handles. Hold Shift for Uniform Resize or Global Move/Rotate. Uniform anchors the opposite face center. Save keeps the draft; Back asks before discarding changes.", 14)
   label("HitboxShortcuts", "Configure local keybinds in CombatForge Settings. Defaults: Ctrl+Alt+P/M/S/R/Z for preview, Move, Resize, Rotate and draft Undo. Studio Ctrl+Z is unchanged. If a Studio shortcut uses the same chord, change one binding.", 14)
   local readout = label("HitboxReadout", "No preview started.", 14)
   local status = label("HitboxStatus", "Changes remain a draft until Save.", 14)
@@ -424,7 +425,7 @@ function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), 
     control.BackgroundColor3 = if selected then activeColor else inactiveColor
     control.TextColor3 = if selected then palette.accentText else palette.text
    end
-   if modifierReadout then modifierReadout.Text = if state.shiftHeld then "Shift held: Global Move/Rotate; Uniform Resize. Release and grab again after changing Shift." else "Local Move/Rotate; Axis Resize. Hold Shift for Global axes or Uniform Resize; changing Shift ends the drag." end
+   if modifierReadout then modifierReadout.Text = if projectile then "Projectile radius resize: fixed launch center; Shift has no effect on radius or orientation." elseif state.shiftHeld then "Shift held: Global Move/Rotate; Uniform Resize. Release and grab again after changing Shift." else "Local Move/Rotate; Axis Resize. Hold Shift for Global axes or Uniform Resize; changing Shift ends the drag." end
    if controls.TogglePreview then controls.TogglePreview.Text = if state.visible then "Preview: On" else "Preview: Off" end
    if controls.Snapping then controls.Snapping.Text = "Snapping: " .. (if state.snapping then "On" else "Off") end
    if modifierReadout then
@@ -439,6 +440,10 @@ function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), 
   end
   local function changed(draft)
    if not readout.Parent then return end
+   if projectile then
+    readout.Text = "Radius: " .. numberText(draft.ProjectileRadius) .. " studs\nDiameter: " .. numberText(2 * draft.ProjectileRadius) .. " studs"
+    return
+   end
    readout.Text = "Size: " .. numberText(draft.HitboxWidth) .. " x " .. numberText(draft.HitboxHeight) .. " x " .. numberText(draft.Range) .. " studs\nLocal offset: X " .. numberText(draft.HitboxOffsetX) .. ", Y " .. numberText(draft.HitboxOffsetY) .. ", Z " .. numberText(draft.HitboxOffsetZ) .. " studs\nRotation: X " .. numberText(draft.HitboxRotationX or 0) .. ", Y " .. numberText(draft.HitboxRotationY or 0) .. ", Z " .. numberText(draft.HitboxRotationZ or 0) .. " degrees"
   end
   local initialDraft = nil
@@ -474,7 +479,7 @@ function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), 
    updateState(previewSession.getState())
   end
   controls.TogglePreview = button("ToggleHitboxPreview", "Preview: Off", actions.TogglePreview)
-  for _, mode in { "Move", "Resize", "Rotate" } do
+  for _, mode in (if projectile then { "Resize" } else { "Move", "Resize", "Rotate" }) do
    actions[mode] = function()
     if not previewSession then return end
     local state = previewSession.getState()

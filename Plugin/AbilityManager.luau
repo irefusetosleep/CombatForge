@@ -244,12 +244,13 @@ function AbilityManager.update(snapshot: Snapshot, inputs: AbilityConfig.Inputs)
 	return true, "Saved " .. config.Name .. ". Save your place to keep these changes."
 end
 
--- Narrow visual-editor save: only the box geometry values may change.
+-- Narrow visual-editor save: choose geometry keys from the parsed snapshot shape.
 function AbilityManager.saveGeometry(snapshot: Snapshot, geometry): (boolean, string)
 	if RunService:IsRunning() then return false, "Stop the playtest before saving hitbox geometry." end
 	local config, parseError = AbilityConfig.parse(snapshot.source)
-	if not config or not AbilityConfig.isMelee(config) then return false, parseError or "Reopen a supported melee config." end
-	local keys = { "HitboxWidth", "HitboxHeight", "Range", "HitboxOffsetX", "HitboxOffsetY", "HitboxOffsetZ", "HitboxRotationX", "HitboxRotationY", "HitboxRotationZ" }
+	local kind = if config then AbilityConfig.hitboxKind(config) else nil
+	if not kind then return false, parseError or "Reopen a complete supported melee or projectile config." end
+	local keys = if kind == "Projectile" then { "ProjectileRadius" } else { "HitboxWidth", "HitboxHeight", "Range", "HitboxOffsetX", "HitboxOffsetY", "HitboxOffsetZ", "HitboxRotationX", "HitboxRotationY", "HitboxRotationZ" }
 	local allowed = {}
 	for _, key in keys do allowed[key] = true end
 	if type(geometry) ~= "table" then return false, "Invalid hitbox geometry." end

@@ -11,12 +11,17 @@ local function finite(value): boolean
 	return type(value) == "number" and value == value and math.abs(value) < math.huge
 end
 local function copy(draft)
+	if draft.ProjectileRadius ~= nil then return { ProjectileRadius = draft.ProjectileRadius } end
 	local result = {}
 	for _, key in geometryKeys do result[key] = draft[key] or 0 end
 	return result
 end
 local function validGeometry(draft): boolean
 	if type(draft) ~= "table" then return false end
+ if draft.ProjectileRadius ~= nil then
+  for key in draft do if key ~= "ProjectileRadius" then return false end end
+  return finite(draft.ProjectileRadius) and draft.ProjectileRadius > 0 and draft.ProjectileRadius <= 256
+ end
 	for _, key in geometryKeys do if not finite(draft[key]) and not (key:match("^HitboxRotation") and draft[key] == nil) then return false end end
 	local count = 0
 	for _, key in { "HitboxRotationX", "HitboxRotationY", "HitboxRotationZ" } do if draft[key] ~= nil then count += 1 end end
@@ -40,10 +45,13 @@ function HitboxEditor.snap(amount: number, increment: number)
  return result, nil
 end
 function HitboxEditor.isSupported(config): boolean
-	return AbilityConfig.isMelee(config)
+	return AbilityConfig.hitboxKind(config) ~= nil
 end
+HitboxEditor.kind = AbilityConfig.hitboxKind
 function HitboxEditor.newDraft(config)
-	if not HitboxEditor.isSupported(config) then return nil, "Edit Hitbox supports complete melee box configs only; projectile/custom configs are not supported." end
+	local kind = AbilityConfig.hitboxKind(config)
+	if not kind then return nil, "Edit Hitbox supports complete melee box or projectile sphere configs; mixed, partial and custom configs are not supported." end
+ if kind == "Projectile" then return { ProjectileRadius = config.ProjectileRadius }, nil end
 	return {
 		HitboxWidth = config.HitboxWidth, HitboxHeight = config.HitboxHeight, Range = config.Range,
 		HitboxOffsetX = config.HitboxOffsetX or 0, HitboxOffsetY = config.HitboxOffsetY or 0, HitboxOffsetZ = config.HitboxOffsetZ or 0,
@@ -52,8 +60,22 @@ function HitboxEditor.newDraft(config)
 end
 function HitboxEditor.transform(rootCFrame: CFrame, draft): (CFrame, Vector3)
 	assert(validGeometry(draft), "Invalid hitbox geometry")
+ if draft.ProjectileRadius ~= nil then
+  local diameter = 2 * draft.ProjectileRadius
+  return CFrame.new(rootCFrame.Position), Vector3.new(diameter, diameter, diameter)
+ end
 	return rootCFrame * CFrame.new(center(draft)) * rotation(draft),
 		Vector3.new(draft.HitboxWidth, draft.HitboxHeight, draft.Range)
+end
+function HitboxEditor.resizeRadius(radius: number, distance: number)
+ if not finite(radius) or radius <= 0 or radius > 256 or not finite(distance) then return nil, "Radius and drag distance must be finite, with radius greater than zero and at most 256." end
+ if distance == 0 then return radius, nil end
+ -- Finite deltas may overflow on addition; clamp by comparison before addition.
+ if distance >= 256 - radius then return 256, nil end
+ if distance <= math.min(0.025, radius) - radius then return math.min(0.025, radius), nil end
+ local changed = radius + distance
+ if not finite(changed) then return nil, "Dragged radius is not finite." end
+ return changed, nil
 end
 function HitboxEditor.drag(baseline, mode: string, face: Enum.NormalId, distance: number, scaleMode: string?, space: string?, rootCFrame: CFrame?)
 	if not validGeometry(baseline) or not finite(distance) then return nil, "Drag geometry must be finite and positive." end
@@ -65,7 +87,12 @@ function HitboxEditor.drag(baseline, mode: string, face: Enum.NormalId, distance
 	elseif face == Enum.NormalId.Back then axis = "Z"; sign = 1
 	elseif face == Enum.NormalId.Front then axis = "Z"; sign = -1
 	else return nil, "Unknown hitbox face." end
-	local draft = copy(baseline)
+	if baseline.ProjectileRadius ~= nil then
+  if mode ~= "Resize" then return nil, "Projectile spheres support Resize only." end
+  local radius, problem = HitboxEditor.resizeRadius(baseline.ProjectileRadius, distance)
+  return if radius then { ProjectileRadius = radius } else nil, problem
+ end
+ local draft = copy(baseline)
 	if distance == 0 and (mode == "Move" or mode == "Resize") then return draft, nil end
 	local normal = if axis == "X" then Vector3.new(sign, 0, 0) elseif axis == "Y" then Vector3.new(0, sign, 0) else Vector3.new(0, 0, sign)
 	local displacement
@@ -90,7 +117,7 @@ function HitboxEditor.drag(baseline, mode: string, face: Enum.NormalId, distance
 	return draft, nil
 end
 function HitboxEditor.rotate(baseline, axis: Enum.Axis, angle: number, space: string?, rootCFrame: CFrame?)
-	if not validGeometry(baseline) or not finite(angle) then return nil, "Rotation must be finite." end
+	if not validGeometry(baseline) or baseline.ProjectileRadius ~= nil or not finite(angle) then return nil, "Rotation must be finite." end
 	local direction = if axis == Enum.Axis.X then Vector3.xAxis elseif axis == Enum.Axis.Y then Vector3.yAxis elseif axis == Enum.Axis.Z then Vector3.zAxis else nil
 	if not direction then return nil, "Unknown rotation axis." end
 	local result = copy(baseline)
@@ -128,7 +155,9 @@ function HitboxEditor.start(plugin, config, onChanged, onStopped, onStateChanged
 	if activeSession then activeSession.destroy() end
 	local draft, problem = HitboxEditor.newDraft(config)
 	if not draft then return nil, problem end
-	local session = {}
+	local kind = AbilityConfig.hitboxKind(config)
+ local sessionKeys = if kind == "Projectile" then { "ProjectileRadius" } else geometryKeys
+ local session = {}
 	local reference, model, humanoid
 	local objects, connections, lifetime = {}, {}, {}
 	local ended, visible = false, false
@@ -140,7 +169,7 @@ function HitboxEditor.start(plugin, config, onChanged, onStopped, onStateChanged
 	local history = {}
 	local gui, proxy, box, handles, arcs
 	local function equal(a, b)
-		for _, key in geometryKeys do if a[key] ~= b[key] then return false end end
+		for _, key in sessionKeys do if a[key] ~= b[key] then return false end end
 		return true
 	end
 	local function notify()
@@ -153,7 +182,7 @@ function HitboxEditor.start(plugin, config, onChanged, onStopped, onStateChanged
 	end
 	function session.getDraft() return copy(draft) end
 	function session.getState()
-		return { visible = visible, mode = mode, scaleMode = scaleMode, shiftHeld = shiftHeld, space = if shiftHeld then "Global" else "Local", snapping = snaps.enabled, snapEnabled = snaps.enabled, snapIncrement = if mode == "Rotate" then snaps.rotate elseif mode == "Resize" then snaps.resize else snaps.move, snapPreferences = table.clone(snaps), canUndo = baseline ~= nil and not equal(baseline, draft) or #history > 0 }
+		return { kind = kind, visible = visible, mode = mode, scaleMode = scaleMode, shiftHeld = shiftHeld, space = if shiftHeld and kind ~= "Projectile" then "Global" else "Local", snapping = snaps.enabled, snapEnabled = snaps.enabled, snapIncrement = if mode == "Rotate" then snaps.rotate elseif mode == "Resize" then snaps.resize else snaps.move, snapPreferences = table.clone(snaps), canUndo = baseline ~= nil and not equal(baseline, draft) or #history > 0 }
 	end
 	local function stopRendering(message)
 		finishGesture()
@@ -181,8 +210,11 @@ function HitboxEditor.start(plugin, config, onChanged, onStopped, onStateChanged
 		proxy.Size = size
 		assert(proxy.Size == size, "This hitbox size is outside Studio preview limits; edit its config source instead.")
 		proxy.CFrame = if shiftHeld and (mode == "Move" or mode == "Rotate") then CFrame.new(frame.Position) else frame
-		box.Size = size
-		box.CFrame = CFrame.new(center(draft)) * rotation(draft)
+		if kind == "Projectile" then
+   box.Radius = draft.ProjectileRadius; box.CFrame = CFrame.identity
+  else
+   box.Size = size; box.CFrame = CFrame.new(center(draft)) * rotation(draft)
+  end
 	end
 	local function renderDraft()
 		if not visible then return true end
@@ -194,12 +226,13 @@ function HitboxEditor.start(plugin, config, onChanged, onStopped, onStateChanged
 		if ended then return false end
 		value = value == true
 		if shiftHeld == value then return true end
-		finishGesture(); shiftHeld = value; scaleMode = if value then "Uniform" else "Axis"
+		finishGesture(); shiftHeld = value; scaleMode = if value and kind ~= "Projectile" then "Uniform" else "Axis"
 		renderDraft(); notify(); return true
 	end
 	function session.setMode(value)
 		if ended or not visible then return false end
 		if value ~= "Preview" and value ~= "Move" and value ~= "Resize" and value ~= "Rotate" then return false end
+  if kind == "Projectile" and value ~= "Preview" and value ~= "Resize" then return false end
 		finishGesture(); mode = value
 		handles.Visible = mode == "Move" or mode == "Resize"; arcs.Visible = mode == "Rotate"
 		handles.Style = if mode == "Move" then Enum.HandlesStyle.Movement else Enum.HandlesStyle.Resize
@@ -220,7 +253,7 @@ function HitboxEditor.start(plugin, config, onChanged, onStopped, onStateChanged
 	function session.reset()
 		if ended then return false end
 		finishGesture()
-		local defaults = { HitboxWidth = 5, HitboxHeight = 5, Range = 6, HitboxOffsetX = 0, HitboxOffsetY = 0, HitboxOffsetZ = 0, HitboxRotationX = 0, HitboxRotationY = 0, HitboxRotationZ = 0 }
+		local defaults = if kind == "Projectile" then { ProjectileRadius = 0.5 } else { HitboxWidth = 5, HitboxHeight = 5, Range = 6, HitboxOffsetX = 0, HitboxOffsetY = 0, HitboxOffsetZ = 0, HitboxRotationX = 0, HitboxRotationY = 0, HitboxRotationZ = 0 }
 		if equal(draft, defaults) then notify(); return false end
 		table.insert(history, copy(draft)); draft = defaults
 		renderDraft(); notify(); return true
@@ -290,7 +323,7 @@ function HitboxEditor.start(plugin, config, onChanged, onStopped, onStateChanged
 			gui = own(Instance.new("ScreenGui")); gui.Name = "CombatForgeHitboxPreview"; gui.Parent = CoreGui
 			proxy = own(Instance.new("Part")); proxy.Name = "CombatForgeHitboxHandleProxy"
 			proxy.Anchored = true; proxy.CanCollide = false; proxy.CanTouch = false; proxy.CanQuery = false; proxy.Transparency = 1
-			box = own(Instance.new("BoxHandleAdornment")); box.Name = "HitboxPreview"; box.Adornee = reference
+			box = own(Instance.new(if kind == "Projectile" then "SphereHandleAdornment" else "BoxHandleAdornment")); box.Name = "HitboxPreview"; box.Adornee = reference
 			box.Color3 = Color3.fromRGB(80, 210, 255); box.Transparency = 0.65; box.AlwaysOnTop = true; box.ZIndex = 1; box.Parent = gui
 			refresh()
 			handles = own(Instance.new("Handles")); handles.Name = "HitboxHandles"; handles.Visible = false
@@ -315,7 +348,7 @@ function HitboxEditor.start(plugin, config, onChanged, onStopped, onStateChanged
 			visible = true; mode = "Preview"; plugin:Activate(true)
 		end)
 		if not ok then stopRendering("Could not start preview: " .. tostring(failure)); return false, "Could not start preview: " .. tostring(failure) end
-		notify(); return true, "Preview active. Choose Move, Resize or Rotate."
+		notify(); return true, if kind == "Projectile" then "Preview active. Resize edits the projectile collision radius at launch." else "Preview active. Choose Move, Resize or Rotate."
 	end
 	table.insert(lifetime, plugin.Unloading:Connect(function() session.destroy() end))
 	activeSession = session

@@ -119,6 +119,9 @@ return function(sources)
    local ui,actions=uiLoader({UserInputService={GetFocusedTextBox=function() return if guards.focused then {} else nil end},RunService={IsRunning=function() return guards.running end}})
    table.insert(results,compile("Tests/VisualHitboxMenu.spec.luau")(ui,actions,parser,guards))
   end
+  if sources["Tests/ProjectileEditor.spec.luau"] then
+   table.insert(results,compile("Tests/ProjectileEditor.spec.luau")(parser,function(services)return module("Plugin/AbilityManager.luau",services,{AbilityConfig=parser})end,function(services,globals)return module("Plugin/HitboxEditor.luau",services,{AbilityConfig=parser},globals)end,uiLoader,linkedModule))
+  end
   if sources["Tests/EditorInput.spec.luau"] then table.insert(results,compile("Tests/EditorInput.spec.luau")(uiLoader,keybinds,theme,parser)) end
   table.insert(results, compile("Tests/Startup.spec.luau")(function(plugin, dependencies, playing)
    local jobs={}

@@ -42,6 +42,7 @@ return function(uiLoader,Keys,Theme,Config)
   local root=host.CombatForgeRoot
   local nav=host.CombatForgeNavigation
   check(nav.Parent==host and root.Parent==host and nav:FindFirstChild("Home") and nav:FindFirstChild("Back") and root:FindFirstChild("Home")==nil,"VH08 AC01 Navigation sibling of scrolling root")
+  check(nav.Back.Position.X.Offset<nav.Home.Position.X.Offset,"PROJECTILE AC01 Back precedes Home")
   check(not nav.Home.Active and not nav.Back.Active and root.Position.Y.Offset>=nav.Size.Y.Offset,"VH08 AC01 Root disabled navigation and reserved layout space")
   local navPosition=nav.Position;root.CanvasPosition=Vector2.new(0,500)
   check(nav.Position==navPosition and nav.Parent~=root,"VH08 AC01 Navigation does not scroll with content")

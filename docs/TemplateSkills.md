@@ -85,14 +85,14 @@ disabled inside the plugin and only generated copies are enabled.
 
 ## Visual melee hitbox editing
 
-Open **Update Skills**, select a complete melee config and choose **Edit Hitbox**.
+Open **Update Skills**, select a complete melee or projectile config and choose **Edit Hitbox**.
 Save any unsaved common-field edits first. Select an existing R6/R15 dummy Model
 (or one of its descendants) in Workspace before opening the editor for automatic
 Preview. If selection is invalid, select a dummy and use **Toggle Preview**. The dummy
 must contain a Humanoid and a BasePart named HumanoidRootPart. Selecting multiple
 dummy models is refused. Changing selection after starting does not retarget it.
 
-Choose **Move** to edit the box's root-local offset along rotated box axes, or **Resize** to change its
+For melee boxes, choose **Move** to edit the box's root-local offset along rotated box axes, or **Resize** to change its
 width (X), height (Y) or Range/depth (Z). Drag a visible handle; the readouts show
 size and offsets in studs. Positive X is root-right, positive Y is up, and negative
 Z is forward. Resizing moves only the dragged face, keeping the opposite face fixed. Handle drags use a 0.05-stud minimum dimension; opening an existing
@@ -104,8 +104,7 @@ action. Other settings are preserved. Stale/moved/renamed configs must be reopen
 **Back** asks before discarding a changed draft. Navigating away, closing the widget, losing the
 reference dummy/root, switching the active Studio tool or entering Play removes
 the preview. Previewing does not change the dummy, source or change history and
-creates no saved workspace Part. The editor supports melee boxes; projectile,
-and custom executable configs are outside its scope.
+creates no saved workspace Part. The editor supports complete melee boxes and projectile collision spheres; mixed, partial and custom executable configs are outside its scope.
 
 New melee configs contain HitboxOffsetX/Y/Z = 0. For older supported configs,
 omitting all three means zero offsets; a partial triple is invalid. The preview
@@ -256,3 +255,29 @@ startup, preserves any existing unique Hitbox module verbatim, and never reinsta
 in response to user Undo. Conflicts/errors can be retried through Install Hitbox
 Module. Existing differing runtime source may still be incompatible with newly
 generated melee templates; template creation keeps its version protection.
+
+
+### Projectile collision sphere
+
+Complete projectile configs also expose Edit Hitbox. The automatic spherical
+preview is centered exactly at the selected dummy HumanoidRootPart.Position,
+matching projectile launch. Radius and diameter display three decimal places;
+untouched stored precision is preserved. This previews the collision sphere at
+launch, not its trajectory or full travel volume. Range remains travel distance
+and is edited in the common skill form.
+
+Projectile editing exposes Resize, preview, snapping, Reset Hitbox, Undo and Save.
+Move/Rotate controls are absent and their shortcuts do nothing. Sphere resizing
+keeps the center fixed; every face changes radius by its outward drag distance.
+Shift does not change sphere geometry or handle orientation. Resize snapping rounds
+the radius delta before clamping, without dividing by two. Radius is limited to
+256 studs; the minimum is min(0.025, the starting radius), preserving smaller
+existing valid values. If Studio cannot render a tiny sphere, the draft/source
+remain intact and a rendering error is shown.
+
+Reset changes only radius to 0.5 as one undoable draft action. Save writes only
+ProjectileRadius through the existing checked source/Undo operation, preserving
+Range, speed, lifetime, aim and damage. Preview off retains draft/history and Save
+still works. Existing linked projectile Tools consume the saved radius on next
+Play without regeneration; custom/unlinked copies are not linked automatically.
+Back precedes Home in the fixed navigation strip on every page.

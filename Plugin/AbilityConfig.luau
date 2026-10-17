@@ -75,7 +75,7 @@ function AbilityConfig.validateConfig(values): (Config?, string?)
 	return config :: Config, nil
 end
 
--- Geometry editing is restricted to complete melee configs, never inferred from names.
+-- Geometry editing requires a complete supported shape, never inferred from names.
 function AbilityConfig.isMelee(config): boolean
 	local valid = AbilityConfig.validateConfig(config)
 	if not valid or valid.HitboxWidth == nil or valid.HitboxHeight == nil or valid.AnimationId == nil or valid.HitDelay == nil then return false end
@@ -83,6 +83,23 @@ function AbilityConfig.isMelee(config): boolean
 		if config[key] ~= nil then return false end
 	end
 	return true
+end
+
+function AbilityConfig.isProjectile(config): boolean
+ local valid = AbilityConfig.validateConfig(config)
+ if not valid then return false end
+ for _, key in { "AnimationId", "HitDelay", "ProjectileSpeed", "ProjectileRadius", "ProjectileLifetime", "AimMode" } do
+  if valid[key] == nil then return false end
+ end
+ for _, key in { "HitboxWidth", "HitboxHeight", "HitboxOffsetX", "HitboxOffsetY", "HitboxOffsetZ", "HitboxRotationX", "HitboxRotationY", "HitboxRotationZ" } do
+  if valid[key] ~= nil then return false end
+ end
+ return true
+end
+function AbilityConfig.hitboxKind(config): string?
+ if AbilityConfig.isMelee(config) then return "Melee" end
+ if AbilityConfig.isProjectile(config) then return "Projectile" end
+ return nil
 end
 
 function AbilityConfig.validate(inputs: Inputs): (Config?, string?)
