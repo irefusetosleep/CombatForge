@@ -20,6 +20,7 @@ return function(loadMain)
  local widgetDestroyed, actionDestroyed, toolbarDestroyed = false, false, false
  local nativeActions,dispatches={},{}
  local uiDestroyed=0
+ local ensures,statuses=0,0
  local widget = {
   Enabled = false, Destroy = function() widgetDestroyed = true end,
   GetPropertyChangedSignal = function() return changed end,
@@ -46,10 +47,13 @@ return function(loadMain)
   end,
   CreateDockWidgetPluginGuiAsync = function() return widget end,
  }
- loadMain(plugin, {
-  UI = {mount = function() mounts += 1; return {invoke=function(name) table.insert(dispatches,name) end,destroy=function() uiDestroyed+=1 end} end}, AbilityManager = {}, Theme = {new = function() return {} end}, Keybinds={new=function() return {} end},
-  RuntimeInstaller = {}, ExampleInstaller = {}, DummySpawner = {}, TemplateInstaller = {}, HitboxEditor = {isSupported=function() return false end,start=function() return nil end},
- })
+ local dependencies={
+  UI = {mount = function() mounts += 1; return {invoke=function(name) table.insert(dispatches,name) end,destroy=function() uiDestroyed+=1 end,setRuntimeStatus=function(ok,message) statuses+=1;if statuses==1 then check(not ok and message=="Injected runtime collision","AC06 Setup failure visible") end end} end}, AbilityManager = {}, Theme = {new = function() return {} end}, Keybinds={new=function() return {} end},SnapPreferences={new=function()return {} end},
+  RuntimeInstaller = {ensure=function() ensures+=1;return false,"Injected runtime collision" end}, DummySpawner = {}, TemplateInstaller = {}, HitboxEditor = {isSupported=function() return false end,start=function() return nil end},
+ }
+ local flush=loadMain(plugin,dependencies)
+ check(ensures==0,"AC06 Runtime setup deferred beyond plugin construction")
+ flush();flush();check(ensures==1 and statuses==1,"AC06 Startup ensures exactly once without retry watcher")
  check(mounts == 1 and active == false, "Startup builds editor once")
  click.Fire(); check(widget.Enabled, "Toolbar opens")
  changed.Fire(); check(active == true, "Button follows editor visibility")
@@ -64,5 +68,9 @@ return function(loadMain)
  check(#dispatches==beforeDispatch,"AC05 Draft shortcut connections disconnected after unload")
  widget.Enabled = false
  trigger.Fire(); click.Fire(); check(not widget.Enabled, "Disconnected inputs after unload")
+ local beforeEnsures=ensures
+ local skip=loadMain(plugin,dependencies,true);skip()
+ check(ensures==beforeEnsures,"VH08 AC06 Play startup skips ensure entirely")
+ unload.Fire()
  return tostring(count) .. " startup assertions passed"
 end

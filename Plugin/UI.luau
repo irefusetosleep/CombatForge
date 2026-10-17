@@ -7,11 +7,15 @@ local ColourPicker = require(script.Parent.ColourPicker)
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local Keybinds = require(script.Parent.Keybinds)
+local SnapPreferences = require(script.Parent.SnapPreferences)
 
-function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), preferences: typeof(Theme.new())?, installHitbox: (() -> (boolean, string))?, installExample: (() -> (boolean, string))?, spawnDummy: ((Enum.HumanoidRigType) -> (boolean, string))?, createTemplate: ((string, string) -> (boolean, string))?, hitboxEditor: any?, keybindPreferences: any?)
+function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), preferences: typeof(Theme.new())?, installHitbox: (() -> (boolean, string))?, spawnDummy: ((Enum.HumanoidRigType) -> (boolean, string))?, createTemplate: ((string, string) -> (boolean, string))?, hitboxEditor: any?, keybindPreferences: any?, snapPreferences: any?)
  local previewSession = nil
  local settings = preferences or Theme.new()
  local keybinds = keybindPreferences or Keybinds.new()
+ local snapSettings = snapPreferences or SnapPreferences.new()
+ local runtimeStatus = "Hitbox runtime setup runs once at plugin startup."
+ local runtimeReady = false
  local captureAction, captureFeedback = nil, nil
  local keybindCaptureCommit = nil
  local promptActive = false
@@ -36,7 +40,8 @@ function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), 
  local palette = Theme.palette(settings.get())
  local root = Instance.new("ScrollingFrame")
  root.Name = "CombatForgeRoot"
- root.Size = UDim2.fromScale(1, 1)
+ root.Size = UDim2.new(1, 0, 1, -60)
+ root.Position = UDim2.fromOffset(0, 60)
  root.BackgroundColor3 = palette.background
  root.BorderSizePixel = 0
  root.CanvasSize = UDim2.fromOffset(0, 0)
@@ -44,6 +49,12 @@ function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), 
  root.ScrollingDirection = Enum.ScrollingDirection.Y
  root.ScrollBarThickness = 6
  root.Parent = widget
+ local navigation = Instance.new("Frame")
+ navigation.Name = "CombatForgeNavigation"
+ navigation.Size = UDim2.new(1, 0, 0, 60)
+ navigation.BackgroundColor3 = palette.surface
+ navigation.BorderSizePixel = 0
+ navigation.Parent = widget
  local green = palette.success
  local red = palette.error
  local destructiveFill = Color3.fromRGB(190, 45, 55)
@@ -68,6 +79,7 @@ function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), 
   red = palette.error
   root.BackgroundColor3 = palette.background
   root.ScrollBarImageColor3 = palette.text
+  navigation:ClearAllChildren(); navigation.BackgroundColor3 = palette.surface
   root:ClearAllChildren()
   root.CanvasPosition = Vector2.zero
   order = 0
@@ -113,7 +125,12 @@ function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), 
   item.TextSize = 14
   item.TextTruncate = Enum.TextTruncate.AtEnd
   item.Text = text
-  if parent then
+  if name == "Home" or name == "Back" then
+   item.Name = name; item.Size = UDim2.fromOffset(90, 36)
+   item.Position = UDim2.fromOffset(if name == "Home" then 12 else 112, 12)
+   item.BackgroundColor3 = palette.accent; item.TextColor3 = palette.accentText
+   item.Parent = navigation
+  elseif parent then
    item.Name = name
    item.Parent = parent
   else
@@ -142,6 +159,17 @@ function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), 
   place(input, name .. "Input")
   return input
  end
+ local function setRuntimeStatus(ok, message)
+  runtimeReady = ok == true; runtimeStatus = message or "Runtime setup failed; retry Install Hitbox Module."
+  local feedback = root:FindFirstChild("RuntimeStatus")
+  if feedback then feedback.Text = runtimeStatus; feedback.TextColor3 = if runtimeReady then palette.text else red end
+ end
+ local function divider(name, caption)
+  local line = Instance.new("Frame")
+  line.Size = UDim2.new(1, -8, 0, 2); line.BorderSizePixel = 0
+  line.BackgroundColor3 = palette.accent; place(line, name .. "Divider")
+  label(name .. "Heading", caption, 20)
+ end
  local showMenu: () -> ()
  local showList: (string?) -> ()
  local showForm: (AbilityManager.Snapshot?) -> ()
@@ -155,7 +183,7 @@ function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), 
   local current = settings.get()
   label("CurrentTheme", "Current theme: " .. current.mode, 16)
   local status = label("Status", message or "Choose a theme. Custom colours are applied when you save.", 14)
-  label("KeybindHeading", "Hitbox keybinds", 20)
+  divider("Keybind", "Hitbox keybinds")
   label("KeybindHelp", "Change captures a letter or digit with optional Ctrl/Alt. Escape cancels. Shift is reserved for transforms; Ctrl+Z/Y remain Studio Undo/Redo. If a Studio shortcut shares a chord, change it in one place. CombatForge does not consume native shortcuts.", 14)
   local keybindStatus = label("KeybindStatus", keybinds.getError() or "Changes save immediately, independently of your theme.", 14)
   local names = { TogglePreview = "Toggle Preview", Move = "Move", Resize = "Resize", Rotate = "Rotate", Undo = "Draft Undo" }
@@ -189,6 +217,26 @@ function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), 
    refreshBindings()
   end)
   refreshBindings()
+  divider("Snapping", "Transform snapping")
+  local currentSnap = snapSettings.get()
+  local snapMove = field("SnapMove", "Move increment (studs)", numberText(currentSnap.move))
+  local snapResize = field("SnapResize", "Resize increment (studs)", numberText(currentSnap.resize))
+  local snapRotate = field("SnapRotate", "Rotate increment (degrees)", numberText(currentSnap.rotate))
+  local snapDisplays = { move = snapMove.Text, resize = snapResize.Text, rotate = snapRotate.Text }
+  local snapStatus = label("SnapSettingsStatus", snapSettings.getError() or "Snapping increments save independently of theme and skills.", 14)
+  button("SaveSnapSettings", "Save snapping increments", function()
+   local candidate = snapSettings.get()
+   local inputs = { move = snapMove.Text, resize = snapResize.Text, rotate = snapRotate.Text }
+   for _, key in { "move", "resize", "rotate" } do candidate[key] = if inputs[key] == snapDisplays[key] then currentSnap[key] else tonumber(inputs[key]) end
+   local ok, result = snapSettings.save(candidate)
+   snapStatus.Text = result; snapStatus.TextColor3 = if ok then palette.text else red
+   if ok then
+    currentSnap = snapSettings.get()
+    snapMove.Text = numberText(currentSnap.move); snapResize.Text = numberText(currentSnap.resize); snapRotate.Text = numberText(currentSnap.rotate)
+    snapDisplays = { move = snapMove.Text, resize = snapResize.Text, rotate = snapRotate.Text }
+   end
+  end)
+  divider("Theme", "Theme selection")
   for _, mode in { "Dark", "Light", "Custom" } do
    button("Theme" .. mode, mode .. (if mode == current.mode then " (selected)" else ""), function()
     local candidate = settings.get()
@@ -197,7 +245,7 @@ function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), 
     if ok then showSettings(result) else status.Text = result; status.TextColor3 = red end
    end)
   end
-  label("CustomHeading", "Custom theme", 20)
+  divider("Custom", "Custom theme")
   label("CustomHelp", "Choose colours using sliders or swatches. Hex entry is optional. Save to apply; leaving this page or selecting a preset discards unsaved edits.", 14)
   local function colourField(name: string, caption: string, hex: string): TextBox
    local input = field(name, caption .. " (optional hex)", "#" .. hex)
@@ -238,7 +286,7 @@ function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), 
    local ok, result = settings.save(draft())
    if ok then showSettings(result) else feedback.Text = result; feedback.TextColor3 = red end
   end, true)
-  label("ShareHeading", "Import / export custom theme", 20)
+  divider("Share", "Import / export custom theme")
   label("ShareHelp", "Export fills the box with your current custom colours, including unsaved edits. Copy the code to share it. Paste a code and import to load a draft, then Save Custom Theme to apply it.", 14)
   local share = field("ThemeCode", "Theme code", "")
   share.Size = UDim2.new(1, -8, 0, 120)
@@ -296,9 +344,9 @@ function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), 
   end))
   for _, item in confirmation do item.Visible = false end
   local name = field("Name", "Skill name", initial.Name)
-  local damage = field("Damage", "Damage (0 or greater)", numberText(initial.Damage))
-  local cooldown = field("Cooldown", "Cooldown in seconds (0 or greater)", numberText(initial.Cooldown))
-  local range = field("Range", "Range in studs (greater than 0)", numberText(initial.Range))
+  local damage = field("Damage", "Damage", numberText(initial.Damage))
+  local cooldown = field("Cooldown", "Cooldown in seconds", numberText(initial.Cooldown))
+  local range = field("Range", "Range in studs", numberText(initial.Range))
   local originals = { Damage = initial.Damage, Cooldown = initial.Cooldown, Range = initial.Range }
   local displays = { Damage = damage.Text, Cooldown = cooldown.Text, Range = range.Text }
   local function values(): AbilityConfig.Inputs
@@ -362,7 +410,7 @@ function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), 
  showHitbox = function(snapshot)
   reset()
   label("Heading", "Edit Hitbox: " .. snapshot.name, 24)
-  label("HitboxInstructions", "Preview starts with the selected dummy. Toggle Preview hides or resumes your draft. Move, Resize and Rotate toggle their handles. Hold Shift for Uniform Resize or Global Move/Rotate. Uniform anchors the opposite face center. Save keeps the draft; Cancel discards it.", 14)
+  label("HitboxInstructions", "Preview starts with the selected dummy. Toggle Preview hides or resumes your draft. Move, Resize and Rotate toggle their handles. Hold Shift for Uniform Resize or Global Move/Rotate. Uniform anchors the opposite face center. Save keeps the draft; Back asks before discarding changes.", 14)
   label("HitboxShortcuts", "Configure local keybinds in CombatForge Settings. Defaults: Ctrl+Alt+P/M/S/R/Z for preview, Move, Resize, Rotate and draft Undo. Studio Ctrl+Z is unchanged. If a Studio shortcut uses the same chord, change one binding.", 14)
   local readout = label("HitboxReadout", "No preview started.", 14)
   local status = label("HitboxStatus", "Changes remain a draft until Save.", 14)
@@ -372,12 +420,18 @@ function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), 
   local function updateState(state)
    if not status.Parent then return end
    for key, control in controls do
-    local selected = if key == "TogglePreview" then state.visible else state.visible and state.mode == key
+    local selected = if key == "TogglePreview" then state.visible elseif key == "Snapping" then state.snapping else state.visible and state.mode == key
     control.BackgroundColor3 = if selected then activeColor else inactiveColor
     control.TextColor3 = if selected then palette.accentText else palette.text
    end
    if modifierReadout then modifierReadout.Text = if state.shiftHeld then "Shift held: Global Move/Rotate; Uniform Resize. Release and grab again after changing Shift." else "Local Move/Rotate; Axis Resize. Hold Shift for Global axes or Uniform Resize; changing Shift ends the drag." end
+   if controls.TogglePreview then controls.TogglePreview.Text = if state.visible then "Preview: On" else "Preview: Off" end
+   if controls.Snapping then controls.Snapping.Text = "Snapping: " .. (if state.snapping then "On" else "Off") end
+   if modifierReadout then
+    modifierReadout.Text ..= " Snapping " .. (if state.snapping then "On: " .. numberText(state.snapIncrement or 1) .. (if state.mode == "Rotate" then " degrees." else " studs.") else "Off.")
+   end
    if controls.Undo then
+    controls.Undo.Text = "Undo (" .. (if keybinds.get().Undo then Keybinds.format(keybinds.get().Undo):gsub("%+", " + ") else "Unbound") .. ")"
     controls.Undo.Active = state.canUndo
     controls.Undo.AutoButtonColor = state.canUndo
     controls.Undo.TextTransparency = if state.canUndo then 0 else 0.5
@@ -419,7 +473,7 @@ function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), 
    status.Text = message or "Preview Ended"; status.TextColor3 = if ok then palette.text else red
    updateState(previewSession.getState())
   end
-  controls.TogglePreview = button("ToggleHitboxPreview", "Toggle Preview", actions.TogglePreview)
+  controls.TogglePreview = button("ToggleHitboxPreview", "Preview: Off", actions.TogglePreview)
   for _, mode in { "Move", "Resize", "Rotate" } do
    actions[mode] = function()
     if not previewSession then return end
@@ -429,6 +483,14 @@ function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), 
    end
    controls[mode] = button("Hitbox" .. mode, mode, actions[mode])
   end
+  controls.Snapping = button("Snapping", "Snapping: Off", function()
+   if not previewSession then return end
+   local candidate = snapSettings.get(); candidate.enabled = not candidate.enabled
+   local ok, message = snapSettings.save(candidate)
+   if ok then previewSession.setSnapPreferences(snapSettings.get()) end
+   status.Text = message; status.TextColor3 = if ok then palette.text else red
+  end)
+  button("ResetHitbox", "Reset Hitbox", function() if previewSession then previewSession.reset() end end)
   modifierReadout = label("HitboxModifier", "Local axes. Hold Shift: global Move/Rotate or Uniform Resize. Release and grab again after changing Shift mid-drag.", 14)
   actions.Undo = function() if previewSession then previewSession.undo() end end
   controls.Undo = button("UndoHitbox", "Undo", actions.Undo)
@@ -452,28 +514,22 @@ function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), 
     status.TextColor3 = red
    end
   end, true)
-  button("CancelHitbox", "Cancel", function() showForm(snapshot) end)
   pageActions = actions
   local session, message = hitboxEditor.start(snapshot.config, changed, function(reason)
    if status.Parent then status.Text = reason; status.TextColor3 = if reason == "Preview Ended" then palette.text else red end
-  end, updateState, shiftDown)
+  end, updateState, shiftDown, snapSettings.get())
   previewSession = session
   status.Text = message or "Could not initialize editor."; status.TextColor3 = if session and session.getState().visible then palette.text else red
   if session then initialDraft = session.getDraft(); updateState(session.getState()) end
  end
  local function showDelete(module: ModuleScript, expectedName: string)
   reset()
-  label("Heading", "Delete " .. expectedName .. "?", 24)
-  button("Home", "Home", showMenu)
-  button("Back", "Back", function() showList() end)
-  label("DeleteHelp", "This removes the skill from CombatForge. You can undo the deletion with Ctrl+Z.", 14)
   local resolved = false
+  label("Heading", "Delete " .. expectedName .. "?", 24)
+  button("Home", "Home", function() resolved = true; showMenu() end)
+  button("Back", "Back", function() resolved = true; showList() end)
+  label("DeleteHelp", "This removes the skill from CombatForge. You can undo the deletion with Ctrl+Z.", 14)
   local status: TextLabel
-  button("CancelDelete", "Cancel", function()
-   if resolved then return end
-   resolved = true
-   showList()
-  end)
   local confirm = button("ConfirmDelete", "Delete", function()
    if resolved then return end
    resolved = true
@@ -491,7 +547,7 @@ function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), 
   end)
   confirm.BackgroundColor3 = destructiveFill
   confirm.TextColor3 = Color3.new(1, 1, 1)
-  status = label("DeleteStatus", "Choose Delete to confirm, or Cancel to keep this skill.", 14)
+  status = label("DeleteStatus", "Choose Delete to confirm, or Back to keep this skill.", 14)
  end
  showList = function(message)
   reset()
@@ -612,6 +668,11 @@ function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), 
  end
  showMenu = function()
   reset()
+  for _, name in { "Home", "Back" } do
+   local item = button(name, name, function() end)
+   item.Active = false; item.AutoButtonColor = false; item.TextTransparency = 0.5
+   item.BackgroundColor3 = palette.surface; item.TextColor3 = palette.text
+  end
   label("Heading", "CombatForge", 26)
   label("Introduction", "Create and manage your combat skills.", 14)
   button("CreateNewSkill", "Create New Skill", function() showForm(nil) end, true)
@@ -683,23 +744,14 @@ function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), 
    updateSelection()
    status = label("DummyStatus", "Spawn an unanchored test dummy where the camera is facing, or at (0, 0, 0) if nothing is hit.", 14)
   end
-  if installExample then
-   local status: TextLabel
-   button("InstallExample", "Install Example Skill", function()
-    local ok, installed, message = pcall(installExample)
-    status.Text = if ok then message else "Could not install example: " .. tostring(installed)
-    status.TextColor3 = if ok and installed then green else red
-   end)
-   status = label("ExampleStatus", "A playable slash Tool with editable damage, cooldown and range. Includes the hitbox runtime.", 14)
-  end
   if installHitbox then
    local status: TextLabel
    button("InstallHitbox", "Install Hitbox Module", function()
     local ok, installed, message = pcall(installHitbox)
-    status.Text = if ok then message else "Could not install: " .. tostring(installed)
-    status.TextColor3 = if ok and installed then green else red
+    setRuntimeStatus(ok and installed, if ok then message else "Could not install: " .. tostring(installed))
    end)
-   status = label("RuntimeStatus", "Install the runtime once per place to use box and sphere hitboxes in scripts.", 14)
+   status = label("RuntimeStatus", runtimeStatus, 14)
+   status.TextColor3 = if runtimeReady then palette.text else red
   end
  end
  local visibility = nil
@@ -713,6 +765,7 @@ function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), 
  end
  root.Destroying:Connect(function()
   closePreview()
+  navigation:Destroy()
   if visibility then visibility:Disconnect() end
  end)
  showMenu()
@@ -773,6 +826,8 @@ function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), 
   table.clear(inputConnections)
  end
  root.Destroying:Connect(dispose)
- return { invoke = invokeAction, destroy = dispose }
+ return { invoke = invokeAction, destroy = dispose,
+  setRuntimeStatus = setRuntimeStatus,
+ }
 end
 return UI

@@ -16,10 +16,7 @@ no remote. Builds and plugin backups are ignored. Local installed plugin:
 - Runtime hitboxes: `Runtime/Hitbox.luau`, `docs/Hitboxes.md`.
   Box/Sphere scan locally; ClientToServer reports client candidates and validates
   on the server. Optional final boolean draws short-lived debug previews.
-- Example: `Examples/*`, `Plugin/ExampleInstaller.luau`, `docs/ExampleSkill.md`.
-  One click runs a regular left box and validated client/server right box;
-  shared per-activation hit tracking prevents double damage.
-- Visual melee hitbox authoring: `Plugin/HitboxEditor.luau`, `Plugin/Keybinds.luau`, `AbilityManager.saveGeometry`, and Update Skills -> Edit Hitbox. Settings configures persistent plugin-local keybinds. Controls use the theme; Home reaches root and Back follows parent pages with dirty-draft prompts. Hold Shift for Uniform Resize or Global Axis Move/Rotate; release returns to local axes. Changing Shift or the reference frame during a drag ends that gesture; start a new drag. Preview/draft Undo remain page-local. Save writes root-local size/offset/rotation without runtime schema changes. Three-decimal display preserves untouched precision. Older copied Tools require fresh generation/manual port for offsets/rotation. Native input and Undo need manual verification.
+- Visual melee hitbox authoring: `Plugin/HitboxEditor.luau`, `Plugin/Keybinds.luau`, `AbilityManager.saveGeometry`, and Update Skills -> Edit Hitbox. Settings configures persistent plugin-local keybinds. Controls use the theme; pinned top-left Home reaches root and Back follows parent pages with dirty-draft prompts. Settings has section dividers and independent persistent Move/Resize stud and Rotate degree snap increments. Snapping is optional, defaults off, and preserves Shift modifiers. Reset Hitbox restores draft geometry to 5 x 5 x 6 with zero offsets/rotation in one undo step. Hold Shift for Uniform Resize or Global Axis Move/Rotate; release returns to local axes. Changing Shift or the reference frame during a drag ends that gesture; start a new drag. Preview/draft Undo remain page-local. Save writes root-local size/offset/rotation without runtime schema changes. Three-decimal display preserves untouched precision. Older copied Tools require fresh generation/manual port for offsets/rotation. Native input and Undo need manual verification.
 - Basic templates: `Templates/*`, `Plugin/TemplateInstaller.luau`,
   `docs/TemplateSkills.md`. Template Skills creates fresh melee/projectile Tools
   in StarterPack; a Mouse Aim/Body Aim slider selects each projectile's mode.
@@ -39,7 +36,7 @@ no remote. Builds and plugin backups are ignored. Local installed plugin:
   can execute Luau. No standalone Luau test runner is currently configured.
 
 Persistent game paths: `ReplicatedStorage.CombatForge.Abilities` and
-`ReplicatedStorage.CombatForge.Runtime.Hitbox`. Installers protect edited copies.
+`ReplicatedStorage.CombatForge.Runtime.Hitbox`. Installers protect edited copies. Startup ensures a missing Hitbox once in Edit, preserving existing edited modules and never reinstalling after Undo. Legacy Example generation was removed; existing place copies are preserved. Toolbar branding uses the verified Asset thumbnail resolver with a safe fallback.
 Plugin loading previously failed with a Folder root; preserve the Script root.
 
 The user authorized temporary isolated hitbox tests with cleanup in the Studio

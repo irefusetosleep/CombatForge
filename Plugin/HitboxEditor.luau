@@ -31,6 +31,14 @@ end
 local function setCenter(draft, value)
 	draft.HitboxOffsetX = value.X; draft.HitboxOffsetY = value.Y; draft.HitboxOffsetZ = value.Z + draft.Range / 2
 end
+function HitboxEditor.snap(amount: number, increment: number)
+ if not finite(amount) or not finite(increment) or increment <= 0 then return nil, "Snap amount and increment must be finite; increment must be positive." end
+ local steps = math.abs(amount) / increment
+ if not finite(steps) then return nil, "Snapped distance exceeds numeric limits." end
+ local result = math.floor(steps + 0.5) * increment * (if amount < 0 then -1 else 1)
+ if not finite(result) then return nil, "Snapped distance exceeds numeric limits." end
+ return result, nil
+end
 function HitboxEditor.isSupported(config): boolean
 	return AbilityConfig.isMelee(config)
 end
@@ -116,7 +124,7 @@ function HitboxEditor.selectRoot(selection)
 	if not root or not root:IsA("BasePart") then return nil, "The selected dummy needs a BasePart HumanoidRootPart." end
 	return root, nil
 end
-function HitboxEditor.start(plugin, config, onChanged, onStopped, onStateChanged, getShiftHeld)
+function HitboxEditor.start(plugin, config, onChanged, onStopped, onStateChanged, getShiftHeld, snapValues)
 	if activeSession then activeSession.destroy() end
 	local draft, problem = HitboxEditor.newDraft(config)
 	if not draft then return nil, problem end
@@ -127,6 +135,7 @@ function HitboxEditor.start(plugin, config, onChanged, onStopped, onStateChanged
 	local mode, scaleMode = "Preview", "Axis"
 	local shiftHeld = false
 	local gestureRoot = nil
+ local snaps = { enabled = false, move = 1, resize = 1, rotate = 15 }
 	local baseline, dragAxis, dragMode, dragScale
 	local history = {}
 	local gui, proxy, box, handles, arcs
@@ -144,7 +153,7 @@ function HitboxEditor.start(plugin, config, onChanged, onStopped, onStateChanged
 	end
 	function session.getDraft() return copy(draft) end
 	function session.getState()
-		return { visible = visible, mode = mode, scaleMode = scaleMode, shiftHeld = shiftHeld, space = if shiftHeld then "Global" else "Local", canUndo = baseline ~= nil and not equal(baseline, draft) or #history > 0 }
+		return { visible = visible, mode = mode, scaleMode = scaleMode, shiftHeld = shiftHeld, space = if shiftHeld then "Global" else "Local", snapping = snaps.enabled, snapEnabled = snaps.enabled, snapIncrement = if mode == "Rotate" then snaps.rotate elseif mode == "Resize" then snaps.resize else snaps.move, snapPreferences = table.clone(snaps), canUndo = baseline ~= nil and not equal(baseline, draft) or #history > 0 }
 	end
 	local function stopRendering(message)
 		finishGesture()
@@ -200,6 +209,22 @@ function HitboxEditor.start(plugin, config, onChanged, onStopped, onStateChanged
 		if ended or (value ~= "Axis" and value ~= "Uniform") then return false end
 		finishGesture(); scaleMode = value; notify(); return true
 	end
+	function session.setSnapPreferences(values)
+		if ended or type(values) ~= "table" or type(values.enabled) ~= "boolean" then return false, "Invalid snapping settings." end
+		for _, key in { "move", "resize", "rotate" } do if not finite(values[key]) or values[key] <= 0 then return false, "Snap increments must be positive and finite." end end
+		local changed = false
+		for key, value in snaps do if values[key] ~= value then changed = true end end
+		if changed then finishGesture(); snaps = { enabled = values.enabled, move = values.move, resize = values.resize, rotate = values.rotate }; notify() end
+		return true
+	end
+	function session.reset()
+		if ended then return false end
+		finishGesture()
+		local defaults = { HitboxWidth = 5, HitboxHeight = 5, Range = 6, HitboxOffsetX = 0, HitboxOffsetY = 0, HitboxOffsetZ = 0, HitboxRotationX = 0, HitboxRotationY = 0, HitboxRotationZ = 0 }
+		if equal(draft, defaults) then notify(); return false end
+		table.insert(history, copy(draft)); draft = defaults
+		renderDraft(); notify(); return true
+	end
 	function session.undo()
 		if ended then return false end
 		if baseline and not equal(baseline, draft) then
@@ -229,6 +254,11 @@ function HitboxEditor.start(plugin, config, onChanged, onStopped, onStateChanged
 			or (rotationGesture and mode ~= "Rotate") or (not rotationGesture and mode ~= "Move" and mode ~= "Resize") then return end
 		if gestureRoot ~= reference.CFrame then finishGesture(); notify(); return end
 		local changed, failure
+		if snaps.enabled then
+			local increment = if rotationGesture then math.rad(snaps.rotate) elseif mode == "Resize" then snaps.resize else snaps.move
+			amount, failure = HitboxEditor.snap(amount, increment)
+			if amount == nil then stopRendering(failure); return end
+		end
 		local space = if shiftHeld then "Global" else "Local"
 		if rotationGesture then changed, failure = HitboxEditor.rotate(baseline, axis, amount, space, gestureRoot)
 		else changed, failure = HitboxEditor.drag(baseline, mode, axis, amount, scaleMode, space, gestureRoot) end
@@ -289,6 +319,7 @@ function HitboxEditor.start(plugin, config, onChanged, onStopped, onStateChanged
 	end
 	table.insert(lifetime, plugin.Unloading:Connect(function() session.destroy() end))
 	activeSession = session
+	if snapValues then session.setSnapPreferences(snapValues) end
 	local _, message = session.setPreviewVisible(true)
 	notify()
 	return session, message

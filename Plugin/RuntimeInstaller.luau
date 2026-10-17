@@ -16,11 +16,12 @@ local function folder(parent: Instance, name: string): Folder?
 	return result
 end
 
-function RuntimeInstaller.install(template: ModuleScript): (boolean, string)
+local function install(template: ModuleScript, preserveExisting: boolean): (boolean, string)
 	if RunService:IsRunning() then return false, "Stop the playtest before installing the runtime." end
 	local recording: string? = nil
 	local created: { Instance } = {}
 	local changed = false
+ local preserved = false
 	local ok, failure = pcall(function()
 		local root = folder(Storage, "CombatForge")
 		local runtime = if root then folder(root, "Runtime") else nil
@@ -31,7 +32,11 @@ function RuntimeInstaller.install(template: ModuleScript): (boolean, string)
 			end
 			if #matches > 0 then
 				assert(#matches == 1 and matches[1]:IsA("ModuleScript"), "Hitbox path is occupied by conflicting objects.")
-				assert(Editor:GetEditorSource(matches[1] :: ModuleScript) == template.Source, "An existing Hitbox module differs from this version. Back it up and rename it before installing; it has not been overwritten.")
+				if preserveExisting then
+     preserved = Editor:GetEditorSource(matches[1] :: ModuleScript) ~= template.Source
+     return
+    end
+    assert(Editor:GetEditorSource(matches[1] :: ModuleScript) == template.Source, "An existing Hitbox module differs from this version. Back it up and rename it before installing; it has not been overwritten.")
 				return
 			end
 		end
@@ -61,7 +66,9 @@ function RuntimeInstaller.install(template: ModuleScript): (boolean, string)
 		end
 		return false, tostring(failure)
 	end
-	return true, (if changed then "Installed" else "Already installed") .. " at ReplicatedStorage.CombatForge.Runtime.Hitbox. Save your place to keep it."
+	return true, (if changed then "Installed" elseif preserved then "Existing differing runtime preserved" else "Already installed") .. " at ReplicatedStorage.CombatForge.Runtime.Hitbox. Save your place to keep it."
 end
 
+function RuntimeInstaller.install(template: ModuleScript): (boolean, string) return install(template, false) end
+function RuntimeInstaller.ensure(template: ModuleScript): (boolean, string) return install(template, true) end
 return RuntimeInstaller

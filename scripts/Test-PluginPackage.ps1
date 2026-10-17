@@ -24,6 +24,7 @@ function Test-Source($Node, [string]$RelativePath) {
 Test-Source $root 'Plugin/Main.server.luau'
 $modules = @{
     Keybinds = 'Plugin/Keybinds.luau'
+    SnapPreferences = 'Plugin/SnapPreferences.luau'
     UI = 'Plugin/UI.luau'
     Theme = 'Plugin/Theme.luau'
     ColourPicker = 'Plugin/ColourPicker.luau'
@@ -32,34 +33,20 @@ $modules = @{
     AbilityManager = 'Plugin/AbilityManager.luau'
     RuntimeInstaller = 'Plugin/RuntimeInstaller.luau'
     HitboxTemplate = 'Runtime/Hitbox.luau'
-    ExampleInstaller = 'Plugin/ExampleInstaller.luau'
     TemplateInstaller = 'Plugin/TemplateInstaller.luau'
     DummySpawner = 'Plugin/DummySpawner.luau'
-    ExampleConfigTemplate = 'Examples/ExampleSlashConfig.luau'
 }
-if ($root.SelectNodes('Item').Count -ne $modules.Count + 3) { throw 'Unexpected plugin child count.' }
+if ($root.SelectNodes('Item').Count -ne $modules.Count + 2) { throw 'Unexpected plugin child count.' }
 foreach ($moduleName in $modules.Keys) {
     $matches = $root.SelectNodes("Item[@class='ModuleScript'][Properties/string[@name='Name']='$moduleName']")
     if ($matches.Count -ne 1) { throw "Missing or duplicated module: $moduleName" }
     Test-Source $matches[0] $modules[$moduleName]
 }
-$tool = $root.SelectSingleNode("Item[@class='Tool'][Properties/string[@name='Name']='ExampleToolTemplate']")
 $idle = $root.SelectSingleNode("Item[@class='ModuleScript'][Properties/string[@name='Name']='DummySpawner']/Item[@class='Script'][Properties/string[@name='Name']='IdleTemplate']")
 if ($null -eq $idle -or $idle.SelectSingleNode("Properties/bool[@name='Disabled']").InnerText -ne 'true') {
     throw 'Dummy idle template must exist and remain disabled inside the plugin.'
 }
 Test-Source $idle 'Runtime/DummyIdle.server.luau'
-if ($null -eq $tool -or $tool.SelectNodes('Item').Count -ne 4) { throw 'Missing example Tool or unexpected Tool children.' }
-if ($tool.SelectSingleNode("Properties/bool[@name='RequiresHandle']").InnerText -ne 'false') { throw 'Example Tool must work without a Handle.' }
-foreach ($entry in @(@('Skill', 'ModuleScript', 'Examples/ExampleSlash.luau'), @('Server', 'Script', 'Examples/ExampleTool.server.luau'), @('Client', 'LocalScript', 'Examples/ExampleTool.client.luau'))) {
-    $child = $tool.SelectSingleNode("Item[@class='$($entry[1])'][Properties/string[@name='Name']='$($entry[0])']")
-    if ($null -eq $child) { throw "Missing example child: $($entry[0])" }
-    Test-Source $child $entry[2]
-    if ($entry[1] -ne 'ModuleScript' -and $child.SelectSingleNode("Properties/bool[@name='Disabled']").InnerText -ne 'true') {
-        throw 'Example script templates must be disabled inside the plugin.'
-    }
-}
-if ($null -eq $tool.SelectSingleNode("Item[@class='RemoteEvent'][Properties/string[@name='Name']='ActivateSkill']")) { throw 'Example RemoteEvent missing.' }
 foreach ($kind in @('Melee', 'Projectile')) {
     $template = $root.SelectSingleNode("Item[@class='Tool'][Properties/string[@name='Name']='$($kind)ToolTemplate']")
     if ($null -eq $template -or $template.SelectNodes('Item').Count -ne 4) { throw "Missing $kind Tool template or unexpected children." }
@@ -73,4 +60,4 @@ foreach ($kind in @('Melee', 'Projectile')) {
     }
     if ($template.SelectNodes("Item[@class='RemoteEvent'][Properties/string[@name='Name']='ActivateSkill']").Count -ne 1) { throw "$kind activation RemoteEvent missing or duplicated." }
 }
-Write-Output 'Verified executable Legacy root, module sources, example and disabled basic skill Tool templates.'
+Write-Output 'Verified executable Legacy root, module sources, disabled basic skill Tool templates.'

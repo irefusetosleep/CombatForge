@@ -14,7 +14,7 @@ return function(loadMain)
   end}
  end
  local fallback="rbxasset://textures/sparkle.png"
- local logo="rbxassetid://118596951641724"
+ local logo="rbxthumb://type=Asset&id=118596951641724&w=150&h=150"
  for _,mode in {"Failure","Success","throw","unloadDuring","unloadPending"} do
   local click,trigger,unload,changed=signal(),signal(),signal(),signal()
   local jobs={}
@@ -58,10 +58,10 @@ return function(loadMain)
    local job={callback=callback,cancelled=false}; table.insert(jobs,job); return job
   end
   loadMain(plugin,{
-   UI={mount=function() mounts+=1; return {invoke=function() end,destroy=function() disposedUI+=1 end} end},Theme={new=function() return {} end},AbilityManager={},Keybinds={new=function() return {} end},
-   RuntimeInstaller={},ExampleInstaller={},TemplateInstaller={},DummySpawner={},HitboxEditor={isSupported=function() return false end,start=function() return nil end},
+   UI={mount=function() mounts+=1; return {invoke=function() end,destroy=function() disposedUI+=1 end,setRuntimeStatus=function()end} end},Theme={new=function() return {} end},AbilityManager={},Keybinds={new=function() return {} end},SnapPreferences={new=function()return {} end},
+   RuntimeInstaller={ensure=function()return true,"Present" end},TemplateInstaller={},DummySpawner={},HitboxEditor={isSupported=function() return false end,start=function() return nil end},
   },{
-   game={GetService=function(_,name) assert(name=="ContentProvider","Unexpected startup service"); return provider end},
+   game={GetService=function(_,name) if name=="RunService" then return {IsRunning=function()return false end} end;assert(name=="ContentProvider","Unexpected startup service"); return provider end},
    task={defer=enqueue,spawn=enqueue,cancel=function(job) cancels+=1; job.cancelled=true end},
   })
   local draftCount=0; for _ in draftActions do draftCount+=1 end
@@ -82,7 +82,7 @@ return function(loadMain)
    check(writes==0 and icon==fallback,"Failure, thrown preload or unload retains fallback")
   end
   if mode=="unloadDuring" or mode=="unloadPending" then
-   check(toolbarDestroyed and actionDestroyed and widgetDestroyed and cancels==1,"Unload cleans UI and cancels pending asset task")
+   check(toolbarDestroyed and actionDestroyed and widgetDestroyed and cancels==(if mode=="unloadPending" then 2 else 1),"Unload cleans UI and cancels pending asset task")
    widget.Enabled=false; click.Fire(); trigger.Fire()
    check(not widget.Enabled and writes==0,"Late result and disconnected inputs cannot revive unloaded UI")
   else

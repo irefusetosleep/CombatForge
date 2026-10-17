@@ -7,7 +7,7 @@ return function(UI, actions)
  local success = true
  local manager = {list = function() return {}, nil end}
  local ok, failure = pcall(function()
-  UI.mount(host, manager, nil, nil, nil, nil, function(kind, mode)
+  UI.mount(host, manager, nil, nil, nil, function(kind, mode)
    table.insert(calls, {kind=kind, mode=mode})
    return success, if success then "Created fixture" else "Injected creation conflict"
   end)

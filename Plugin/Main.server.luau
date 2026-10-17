@@ -9,14 +9,14 @@ local UI = require(script.UI)
 local AbilityManager = require(script.AbilityManager)
 local Theme = require(script.Theme)
 local RuntimeInstaller = require(script.RuntimeInstaller)
-local ExampleInstaller = require(script.ExampleInstaller)
 local TemplateInstaller = require(script.TemplateInstaller)
 local DummySpawner = require(script.DummySpawner)
 local HitboxEditor = require(script.HitboxEditor)
 local Keybinds = require(script.Keybinds)
+local SnapPreferences = require(script.SnapPreferences)
 local toolbar = plugin:CreateToolbar("CombatForge")
 local icon = "rbxasset://textures/sparkle.png"
-local logo = "rbxassetid://118596951641724"
+local logo = "rbxthumb://type=Asset&id=118596951641724&w=150&h=150"
 local button = toolbar:CreateButton("CombatForge.Toggle", "Open or close CombatForge", icon, "CombatForge")
 button.ClickableWhenViewportHidden = true
 -- A shortcut action provides a second entry point if Studio hides the ribbon button.
@@ -27,12 +27,14 @@ local widget: DockWidgetPluginGui? = nil
 local unloaded = false
 local editorUI = nil
 local iconTask: thread? = nil
+local runtimeTask: thread? = nil
 
 local function cleanup()
 	if unloaded then
 		return
 	end
 	unloaded = true
+	if runtimeTask then pcall(task.cancel, runtimeTask); runtimeTask = nil end
 	if iconTask then
 		pcall(task.cancel, iconTask)
 		iconTask = nil
@@ -62,9 +64,7 @@ local success, failure = pcall(function()
 	widget = createdWidget
 	createdWidget.Title = "CombatForge"
 	editorUI = UI.mount(createdWidget, AbilityManager, Theme.new(plugin), function()
-		return RuntimeInstaller.install(script.HitboxTemplate)
-	end, function()
-		return ExampleInstaller.install(script.HitboxTemplate, script.ExampleConfigTemplate, script.ExampleToolTemplate)
+		return RuntimeInstaller.ensure(script.HitboxTemplate)
 	end, function(rigType: Enum.HumanoidRigType)
 		return DummySpawner.spawn(rigType)
 	end, function(kind: string, aimMode: string)
@@ -72,10 +72,10 @@ local success, failure = pcall(function()
 		return TemplateInstaller.install(script.HitboxTemplate, template, kind, aimMode)
 	end, {
 		isSupported = HitboxEditor.isSupported,
-		start = function(config, onChanged, onStopped, onStateChanged, getShiftHeld)
-			return HitboxEditor.start(plugin, config, onChanged, onStopped, onStateChanged, getShiftHeld)
+		start = function(config, onChanged, onStopped, onStateChanged, getShiftHeld, snapValues)
+			return HitboxEditor.start(plugin, config, onChanged, onStopped, onStateChanged, getShiftHeld, snapValues)
 		end,
-	}, Keybinds.new(plugin))
+	}, Keybinds.new(plugin), SnapPreferences.new(plugin))
 
 	local function syncButton()
 		button:SetActive(createdWidget.Enabled)
@@ -94,6 +94,24 @@ end)
 if not success then
 	cleanup()
 	warn("[CombatForge] Could not start the plugin: " .. tostring(failure))
+end
+
+-- One startup attempt only: never counteract a user's runtime Undo/deletion.
+if success and not unloaded then
+ pcall(function()
+  runtimeTask = task.defer(function()
+   if unloaded then return end
+   if game:GetService("RunService"):IsRunning() then
+    if editorUI then editorUI.setRuntimeStatus(true, "Runtime startup setup skipped in Play. Stop Play and retry Install Hitbox Module, or reopen Studio in Edit mode.") end
+    runtimeTask = nil; return
+   end
+   local ok, installed, message = pcall(RuntimeInstaller.ensure, script.HitboxTemplate)
+   if not ok then message = "Could not ensure runtime: " .. tostring(installed) end
+   if not unloaded and editorUI then editorUI.setRuntimeStatus(ok and installed, message) end
+   if not ok or not installed then warn("[CombatForge] " .. tostring(message)) end
+   runtimeTask = nil
+  end)
+ end)
 end
 
 -- Optional branding must never delay or prevent the editor from opening.

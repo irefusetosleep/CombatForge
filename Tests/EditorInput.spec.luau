@@ -27,6 +27,8 @@ return function(uiLoader,Keys,Theme,Config)
    setMode=function(mode)modes+=1;state.mode=mode;onState(state);return true end,
    setShiftHeld=function(value)state.shiftHeld=value;state.space=if value then "Global" else "Local";state.scaleMode=if value then "Uniform" else "Axis";onState(state);return true end,
    setPreviewVisible=function(value)state.visible=value;state.mode="Preview";onState(state);return true end,
+   reset=function()draft.HitboxWidth=5;draft.HitboxHeight=5;draft.Range=6;for _,key in {"HitboxOffsetX","HitboxOffsetY","HitboxOffsetZ","HitboxRotationX","HitboxRotationY","HitboxRotationZ"} do draft[key]=0 end;state.canUndo=true;onChanged(draft);onState(state);return true end,
+   setSnapPreferences=function(values)state.snapping=values.enabled;state.snapEnabled=values.enabled;state.snapIncrement=values.move;onState(state);return true end,
    undo=function()return false end,destroy=function()destroys+=1;state.visible=false;state.shiftHeld=false end}
   onChanged(draft);onState(state);return session,"Preview active"
  end}
@@ -36,10 +38,24 @@ return function(uiLoader,Keys,Theme,Config)
  local preferences={get=function()return table.clone(themeSettings) end,save=function(value)themeSettings=table.clone(value);return true,"Saved" end}
  local mounted
  local ok,problem=pcall(function()
-  mounted=ui.mount(host,manager,preferences,nil,nil,nil,function()return true,"Created" end,capability,keyprefs)
+  mounted=ui.mount(host,manager,preferences,function()return true,"Runtime retry installed" end,nil,function()return true,"Created" end,capability,keyprefs)
   local root=host.CombatForgeRoot
+  local nav=host.CombatForgeNavigation
+  check(nav.Parent==host and root.Parent==host and nav:FindFirstChild("Home") and nav:FindFirstChild("Back") and root:FindFirstChild("Home")==nil,"VH08 AC01 Navigation sibling of scrolling root")
+  check(not nav.Home.Active and not nav.Back.Active and root.Position.Y.Offset>=nav.Size.Y.Offset,"VH08 AC01 Root disabled navigation and reserved layout space")
+  local navPosition=nav.Position;root.CanvasPosition=Vector2.new(0,500)
+  check(nav.Position==navPosition and nav.Parent~=root,"VH08 AC01 Navigation does not scroll with content")
   check(input.InputBegan.Count()==1 and input.InputEnded.Count()==1 and input.WindowFocused.Count()==1 and input.WindowFocusReleased.Count()==1,"AC02 One input owner per mount")
+  mounted.setRuntimeStatus(false,"Expected startup collision")
+  check(root.RuntimeStatus.Text=="Expected startup collision","VH08 AC06 Startup failure status visible")
+  actions.InstallHitbox();check(root.RuntimeStatus.Text=="Runtime retry installed","VH08 AC06 Manual retry succeeds")
+  actions.Settings();actions.Back()
+  check(root.RuntimeStatus.Text=="Runtime retry installed","VH08 AC06 Successful retry retained across navigation")
   actions.Settings()
+  for _,name in {"KeybindDivider","SnappingDivider","ThemeDivider","CustomDivider","ShareDivider"} do check(root:FindFirstChild(name)~=nil,"VH08 AC01 Settings labeled section divider "..name) end
+  check(root.SnapMoveInput and root.SnapResizeInput and root.SnapRotateInput,"VH08 AC04 Three increment settings controls")
+  root.SnapMoveInput.Text="0";actions.SaveSnapSettings();check(root.SnapSettingsStatus.Text:find("positive",1,true),"VH08 AC04 Invalid settings input actionable")
+  root.SnapMoveInput.Text="0.25";root.SnapResizeInput.Text="0.5";root.SnapRotateInput.Text="7.5";actions.SaveSnapSettings()
   for _,action in Keys.actions do check(root:FindFirstChild("ChangeKeybind"..action) and root:FindFirstChild("ClearKeybind"..action) and root:FindFirstChild("Keybind"..action),"AC01 Five editable settings rows") end
   actions.ChangeKeybindMove();tap(Enum.KeyCode.Escape);tap(Enum.KeyCode.B)
   check(writes==0 and keyprefs.get().Move.key=="M","AC01 Escape cancels capture")
@@ -61,6 +77,8 @@ return function(uiLoader,Keys,Theme,Config)
   actions.ChangeKeybindMove();actions.Home();tap(Enum.KeyCode.G);check(writes==before,"AC01/04 Navigation cancels capture")
   check(root:FindFirstChild("CreateNewSkill")~=nil,"AC04 Settings Home returns root")
   actions.UpdateSkills();actions.Skill1();actions.EditHitbox()
+  check(root.ToggleHitboxPreview.Text=="Preview: On" and root.UndoHitbox.Text=="Undo (Ctrl + Alt + Z)","VH08 AC02 Actual preview label/default spaced Undo chord")
+  check(root:FindFirstChild("CancelHitbox")==nil,"VH08 AC01 Redundant visual Cancel removed")
   check(root:FindFirstChild("HitboxScaleAxis")==nil and root:FindFirstChild("HitboxScaleUniform")==nil,"AC05 Scale buttons removed")
   chord(Enum.KeyCode.M);check(state.mode=="Move","AC02 RightAlt LeftCtrl normalized chord dispatch")
   press(Enum.KeyCode.LeftControl);press(Enum.KeyCode.LeftAlt);press(Enum.KeyCode.M);press(Enum.KeyCode.M)
@@ -96,8 +114,19 @@ return function(uiLoader,Keys,Theme,Config)
    actions.Skill1();actions.EditHitbox()
    check(root.ToggleHitboxPreview.BackgroundColor3==palette.accent and root.ToggleHitboxPreview.TextColor3==palette.accentText and root.HitboxMove.BackgroundColor3==palette.surface and root.HitboxMove.TextColor3==palette.text,"AC03 Editor palette roles "..mode)
    actions.HitboxMove();check(root.HitboxMove.BackgroundColor3==palette.accent and root.HitboxResize.BackgroundColor3==palette.surface,"AC03 Selected mode palette "..mode)
-   actions.CancelHitbox();actions.Home()
+   actions.Back();actions.Home()
   end
+  keyprefs.set("Undo",assert(Keys.chord("8",false,true,false)))
+  actions.UpdateSkills();actions.Skill1();actions.EditHitbox()
+  check(root.UndoHitbox.Text=="Undo (Alt + 8)","VH08 AC02 Undo reflects configured chord")
+  actions.ToggleHitboxPreview();check(root.ToggleHitboxPreview.Text=="Preview: Off","VH08 AC02 Preview Off label follows actual state")
+  actions.Snapping();check(state.snapping and root.Snapping.Text=="Snapping: On","VH08 AC04 Snapping UI toggle updates current state")
+  draft.HitboxWidth=8;changed(draft);actions.ResetHitbox()
+  check(draft.HitboxWidth==5 and draft.Range==6,"VH08 AC03 Reset button invokes draft reset while off")
+  actions.Back();if root:FindFirstChild("DiscardPrompt") and root.DiscardPrompt.Visible then actions.DiscardChanges() end;actions.Home()
+  keyprefs.set("Undo",false);actions.UpdateSkills();actions.Skill1();actions.EditHitbox()
+  check(root.UndoHitbox.Text=="Undo (Unbound)","VH08 AC02 Cleared Undo binding label")
+  actions.Back();actions.Home()
   actions.Settings();actions.Back();actions.Settings();actions.Home()
   check(input.InputBegan.Count()==1,"AC02 Reopen Settings/pages do not multiply listeners")
   mounted.destroy();check(input.InputBegan.Count()==0 and input.InputEnded.Count()==0 and input.WindowFocused.Count()==0 and input.WindowFocusReleased.Count()==0,"AC07 Dispose all input connections")

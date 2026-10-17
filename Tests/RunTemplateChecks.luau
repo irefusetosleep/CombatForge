@@ -66,6 +66,8 @@ return function(sources)
   end
   local theme = module("Plugin/Theme.luau")
   local keybinds=module("Plugin/Keybinds.luau")
+  local snapPrefs=module("Plugin/SnapPreferences.luau")
+  if sources["Tests/Snapping.spec.luau"] then table.insert(results,compile("Tests/Snapping.spec.luau")(snapPrefs,function(services)return module("Plugin/RuntimeInstaller.luau",services)end)) end
   if sources["Tests/Keybinds.spec.luau"] then table.insert(results,compile("Tests/Keybinds.spec.luau")(keybinds)) end
   if sources["Tests/VisualHitboxGeometry.spec.luau"] then
    local editor=module("Plugin/HitboxEditor.luau",{Selection={},RunService={},CoreGui={}},{AbilityConfig=parser})
@@ -100,7 +102,7 @@ return function(sources)
    end)
    assert(replacements == 1, "UI callback instrumentation must match once")
    instrumented = instrumented:gsub("segment%.Activated:Connect%(function%(%)", "captureSegment(segment, function()")
-   local ui = module("Plugin/UI.luau", services, {AbilityConfig=parser, AbilityManager={}, Theme=theme, ColourPicker=colourPicker, Keybinds=keybinds}, {
+   local ui = module("Plugin/UI.luau", services, {AbilityConfig=parser, AbilityManager={}, Theme=theme, ColourPicker=colourPicker, Keybinds=keybinds, SnapPreferences=snapPrefs}, {
     actions=actions, captureSegment=function(segment, callback)
      actions[segment.Name]=callback
      return segment.Activated:Connect(callback)
@@ -118,18 +120,11 @@ return function(sources)
    table.insert(results,compile("Tests/VisualHitboxMenu.spec.luau")(ui,actions,parser,guards))
   end
   if sources["Tests/EditorInput.spec.luau"] then table.insert(results,compile("Tests/EditorInput.spec.luau")(uiLoader,keybinds,theme,parser)) end
-  table.insert(results, compile("Tests/Startup.spec.luau")(function(plugin, dependencies)
-   return module("Plugin/Main.server.luau", nil, dependencies, {plugin=plugin,task={defer=function(callback) return {callback=callback} end,cancel=function() end}})
+  table.insert(results, compile("Tests/Startup.spec.luau")(function(plugin, dependencies, playing)
+   local jobs={}
+   module("Plugin/Main.server.luau", {RunService={IsRunning=function()return playing==true end},ContentProvider={PreloadAsync=function(_,assets,callback)callback(assets[1],Enum.AssetFetchStatus.Failure)end}}, dependencies, {plugin=plugin,task={defer=function(callback)local job={callback=callback};table.insert(jobs,job);return job end,cancel=function(job)job.cancelled=true end}})
+   return function()for _,job in jobs do if not job.cancelled and not job.ran then job.ran=true;job.callback() end end end
   end))
-  if sources["Tests/Example.spec.luau"] then
-   table.insert(results, compile("Tests/Example.spec.luau")(function(services, configParser)
-    return module("Plugin/ExampleInstaller.luau", services, {AbilityConfig=configParser})
-   end, function(services, hitbox, settings, previewWorld, clock, delay)
-    return module("Examples/ExampleSlash.luau", services, {Runtime=hitbox, Abilities=settings}, {
-     workspace=previewWorld, os={clock=clock}, task={delay=delay},
-    })
-   end, nil, parser))
-  end
   for _, kind in {"Melee", "Projectile"} do
    local tool = Instance.new("Tool"); tool.Name = kind
    tool.RequiresHandle = false; tool.CanBeDropped = false

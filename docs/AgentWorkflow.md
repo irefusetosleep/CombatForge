@@ -131,11 +131,11 @@ remaining manual Studio checks.
 
 ## Delivery boundaries
 
-Preserve the executable Legacy Script Rojo root and disabled runtime/example
+Preserve the executable Legacy Script Rojo root and disabled runtime/basic skill
 Script templates. Use package checks and installation instructions in AGENTS.md
 when applicable. Coordinator owns integration checks, local installation and Git
 commits; workers do not deliver independently. Existing in-place runtime modules
-and example Tools are preserved; explain upgrade steps for changed templates.
+and generated Tools are preserved; explain upgrade steps for changed templates.
 
 Prior user authorization covers new revisions installed locally through
 `scripts/Install-Plugin.ps1`, with filesystem approval for the external Plugins

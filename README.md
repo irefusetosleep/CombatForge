@@ -4,15 +4,16 @@
 
 Use the **CombatForge** button in Studio's Plugins ribbon. It now includes an icon so the control is identifiable in compact ribbon layouts. If Studio hides the ribbon button, go to **File → Customize Shortcuts**, search for **Open CombatForge**, and assign an unused shortcut. The shortcut opens the same editor without resetting your current form. A closed editor window is different from a plugin failing to load; the former can be reopened without reinstalling.
 
-## Playable example skill
+## Template Skills
 
-Click **Install Example Skill** on the main menu. This adds a playable **CombatForge Example Slash** Tool to StarterPack, an **ExampleSlash** configuration to the skill editor, and the Hitbox runtime if missing. Installation uses one undo recording and preserves existing edited examples. The bundled Tool scripts are disabled inside the plugin and enabled only in the installed game copy.
-
-Press Play, equip the Tool, face a nearby training dummy and click. A green box flashes, dealing 20 damage with a one-second cooldown. Stop Play and use **Update Skills → ExampleSlash** to change its damage, cooldown and range. [Example code structure and testing instructions](docs/ExampleSkill.md) explain the client request, server ownership check, cooldown, hit event and cleanup. Save your place after installing.
+Choose **Template Skills** to generate a working melee or projectile Tool with a
+linked editable config in ReplicatedStorage.CombatForge.Abilities. See
+[Template Skills](docs/TemplateSkills.md) for runtime layout, visual hitbox editing,
+Shift transforms, snapping and draft Undo. Legacy installed game content is preserved.
 
 ## Hitbox module
 
-Choose **Install Hitbox Module** from the main menu to install `ReplicatedStorage.CombatForge.Runtime.Hitbox` into the current place, with undo support and protection for existing custom modules. Require it from server-side skill code to create box or sphere detectors, connect `HitDetected`, and call `Cast()` at the attack's hit timing. Caster hits are disabled by default; Filter excludes listed instances and descendants. See [Hitbox API, examples and test steps](docs/Hitboxes.md).
+Startup in Edit mode safely ensures the runtime once; **Install Hitbox Module** retries setup from the main menu to install `ReplicatedStorage.CombatForge.Runtime.Hitbox` into the current place, with undo support and protection for existing custom modules. Require it from server-side skill code to create box or sphere detectors, connect `HitDetected`, and call `Cast()` at the attack's hit timing. Caster hits are disabled by default; Filter excludes listed instances and descendants. See [Hitbox API, examples and test steps](docs/Hitboxes.md).
 
 `Runtime/Hitbox.luau` is bundled inside the plugin as `Main.HitboxTemplate`. `Plugin/RuntimeInstaller.luau` installs the independent runtime; no plugin APIs are used by the installed Hitbox module. Spatial tests ran against a temporary WorldModel in Studio and removed it afterward. Installer error cases use isolated services; installed-runtime undo/redo should be checked in Studio.
 
@@ -45,7 +46,7 @@ After replacing the local plugin, keeping all bundled children under the entry S
 5. Open each colour picker and test click/drag selection, quick swatches, preview and scrolling in a narrow dock. Save and reopen to verify the selected colours.
 6. Export a palette, copy the code, change the draft, paste/import the code, and confirm importing alone does not change the active theme. Save to apply it. Try invalid text and confirm it reports an error without changing the controls.
 
-CombatForge now opens to a main menu with **Create New Skill** and **Update Skills**. Create uses the existing form; Update lists saved skills and lets you change their name, damage, cooldown and range. Creation and its Studio undo behavior have been confirmed by the user. A standalone box/sphere hitbox runtime is now available; automatic skill execution remains a future milestone.
+CombatForge now opens to a main menu with **Create New Skill** and **Update Skills**. Create uses the existing form; Update lists saved skills and lets you change their name, damage, cooldown and range. Creation and its Studio undo behavior have been confirmed by the user. A standalone box/sphere hitbox runtime is now available; Template Skills provide playable melee/projectile scaffolding.
 
 ## Source layout
 
@@ -56,7 +57,7 @@ CombatForge now opens to a main menu with **Create New Skill** and **Update Skil
 - `default.project.json`: Rojo model mapping. The UI ModuleScript becomes a child of the Main Script, so `require(script.UI)` resolves correctly.
 - `build/CombatForge.rbxmx`: generated installable model, excluded from Git.
 
-Opening the editor creates no game objects. Clicking Create Skill creates a configuration ModuleScript. Update edits the selected ModuleScript in place, recording its source and name change together. Its stable widget ID lets Studio restore docking and visibility. Closing the window updates the toolbar toggle and preserves the current form until the plugin unloads. No runtime framework or dependencies are required.
+Plugin startup ensures a missing Hitbox runtime in one undo record, preserving existing source. Opening the editor itself creates no game objects. Clicking Create Skill creates a configuration ModuleScript. Update edits the selected ModuleScript in place, recording its source and name change together. Its stable widget ID lets Studio restore docking and visibility. Closing the window updates the toolbar toggle and preserves the current form until the plugin unloads. No runtime framework or dependencies are required.
 
 ## Build
 
@@ -71,7 +72,7 @@ rojo build default.project.json -o build/CombatForge.rbxmx
 
 1. Open a disposable Baseplate in Roblox Studio in edit mode.
 2. Right-click ServerStorage in Explorer and choose **Insert from File**. Select `build/CombatForge.rbxmx` from this project.
-3. Select the inserted **CombatForge Script**, keeping all bundled ModuleScripts and the ExampleToolTemplate Tool intact, and choose **Save as Local Plugin** from the right-click menu or Plugins menu. Name it CombatForge and save it, replacing the previous local version. The entry script's source file is Main.server.luau; it is now the root of the built model, without a Folder wrapper.
+3. Select the inserted **CombatForge Script**, keeping all bundled ModuleScripts and the disabled melee/projectile template Tools intact, and choose **Save as Local Plugin** from the right-click menu or Plugins menu. Name it CombatForge and save it, replacing the previous local version. The entry script's source file is Main.server.luau; it is now the root of the built model, without a Folder wrapper.
 4. Look for CombatForge in the Plugins toolbar. If it has not appeared, restart Studio.
 5. Remove the imported CombatForge Script from ServerStorage after installation; the installed plugin has its own copy.
 6. Click the CombatForge toolbar button to open the window. Do not press Play to launch the plugin.

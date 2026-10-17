@@ -107,7 +107,7 @@ local slash = Hitbox.ClientToServer({
     Authorize = function(player)
         local character = player.Character
         local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-        local tool = character and character:FindFirstChild("CombatForge Example Slash")
+        local tool = character and character:FindFirstChild("YourSkillTool")
         -- Add your game's stun, resource, ownership and attack-window checks here.
         return humanoid ~= nil and humanoid.Health > 0
             and tool ~= nil and tool:IsA("Tool") and tool.Enabled
@@ -142,7 +142,7 @@ script.Parent.Activated:Connect(function() slash:Cast() end)
 script.Destroying:Connect(function() slash:Destroy() end)
 ```
 
-When adapting the installed example, replace its existing activation wiring with this pattern; running both would apply two attacks.
+When adapting an existing Tool, replace its activation wiring with this pattern; running both would apply two attacks.
 
 - `Cast()` is client-only: one local scan, up to 64 candidate targets, and one report (including misses). It returns the reported hit records. It accepts no origin override: both sides derive the origin from their current character and `Offset`.
 - Server `HitDetected(hit, player)` fires only for reported targets also overlapping the server's current hitbox. The server creates the hit record; clients cannot supply damage, caster, size, radius or hit records. Duplicated targets fire once per accepted report.

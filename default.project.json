@@ -3,25 +3,16 @@
   "tree": {
       "$path": "Plugin/Main.server.luau",
       "Keybinds": { "$path": "Plugin/Keybinds.luau" },
+      "SnapPreferences": { "$path": "Plugin/SnapPreferences.luau" },
       "UI": { "$path": "Plugin/UI.luau" },
       "Theme": { "$path": "Plugin/Theme.luau" },
       "ColourPicker": { "$path": "Plugin/ColourPicker.luau" },
       "HitboxEditor": { "$path": "Plugin/HitboxEditor.luau" },
       "HitboxTemplate": { "$path": "Runtime/Hitbox.luau" },
       "RuntimeInstaller": { "$path": "Plugin/RuntimeInstaller.luau" },
-      "ExampleInstaller": { "$path": "Plugin/ExampleInstaller.luau" },
       "DummySpawner": {
         "$path": "Plugin/DummySpawner.luau",
         "IdleTemplate": { "$path": "Runtime/DummyIdle.server.luau", "$properties": { "Disabled": true } }
-      },
-      "ExampleConfigTemplate": { "$path": "Examples/ExampleSlashConfig.luau" },
-      "ExampleToolTemplate": {
-        "$className": "Tool",
-        "$properties": { "RequiresHandle": false, "CanBeDropped": false, "ToolTip": "CombatForge example: click to slash" },
-        "Skill": { "$path": "Examples/ExampleSlash.luau" },
-        "Server": { "$path": "Examples/ExampleTool.server.luau", "$properties": { "Disabled": true } },
-        "Client": { "$path": "Examples/ExampleTool.client.luau", "$properties": { "Disabled": true } },
-        "ActivateSkill": { "$className": "RemoteEvent" }
       },
       "TemplateInstaller": { "$path": "Plugin/TemplateInstaller.luau" },
       "MeleeToolTemplate": {

@@ -113,6 +113,31 @@ return function(Editor,Config,linkedModule)
   check(near(actual.Position,worldFrame.Position) and dimensions==worldSize,"VH07 AC06 Global rotation preserves center and size")
   check(near(actual.RightVector,expected.RightVector) and near(actual.UpVector,expected.UpVector),"VH07 AC06 Global rotation premultiplies world orientation")
  end
+ -- VH08 symmetric signed quantization before existing geometry equations.
+ for _,entry in {{.49,1,0},{.5,1,1},{1.5,1,2},{-.49,1,0},{-.5,1,-1},{-1.5,1,-2},{.375,.25,.5},{-.375,.25,-.5}} do
+  check(Editor.snap(entry[1],entry[2])==entry[3],"VH08 AC05 Symmetric half-away-from-zero quantization")
+ end
+ for _,bad in {0,-1,0/0,math.huge,-math.huge} do check(Editor.snap(1,bad)==nil,"VH08 AC05 Invalid snap increment rejected") end
+ for _,bad in {0/0,math.huge,-math.huge} do check(Editor.snap(bad,1)==nil,"VH08 AC05 Invalid snap amount rejected") end
+ for _,entry in axes do
+  local amount=assert(Editor.snap(-.5,1))
+  for _,space in {"Local","Global"} do
+   local snapped=assert(Editor.drag(oriented,"Move",entry[1],amount,"Axis",space,root))
+   local reference=assert(Editor.drag(oriented,"Move",entry[1],-1,"Axis",space,root))
+   check(sameFrame(Editor.transform(root,snapped),Editor.transform(root,reference)),"VH08 AC05 Snapped delta uses existing oriented Move")
+  end
+  for _,scale in {"Axis","Uniform"} do
+   local snapped=assert(Editor.drag(oriented,"Resize",entry[1],amount,scale))
+   local reference=assert(Editor.drag(oriented,"Resize",entry[1],-1,scale))
+   for key,value in reference do check(snapped[key]==value,"VH08 AC05 Snapping precedes scale/clamp math "..key) end
+  end
+ end
+ for _,axis in {Enum.Axis.X,Enum.Axis.Y,Enum.Axis.Z} do
+  local angle=assert(Editor.snap(math.rad(-7.5),math.rad(15)))
+  local actual=assert(Editor.rotate(oriented,axis,angle,"Global",root))
+  local expected=assert(Editor.rotate(oriented,axis,math.rad(-15),"Global",root))
+  check(sameFrame(Editor.transform(root,actual),Editor.transform(root,expected)),"VH08 AC05 Rotation snaps in matching radians boundary")
+ end
  local depth=assert(Editor.drag(draft,"Resize",Enum.NormalId.Front,2))
  check(depth.Range==8 and depth.HitboxOffsetZ==0,"AC02 Front face extends outward while opposite back face stays fixed")
  local firstResize=assert(Editor.drag(oriented,"Resize",Enum.NormalId.Right,2))

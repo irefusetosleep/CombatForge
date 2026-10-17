@@ -3,7 +3,7 @@
 Open **Template Skills** from the CombatForge main menu. **Empty Melee Skill**
 creates a basic forward attack; **Empty Projectile Skill** creates a straight
 flying projectile. These are working starting points with no animation asset
-required. Existing Example Skill behavior is unchanged.
+required. Existing game content is preserved.
 
 The two-position slider directly below the projectile button selects **Mouse
 Aim** or **Body Aim** before creation. Mouse Aim is initially selected and the
@@ -52,7 +52,7 @@ no ASCII control characters.
 
 The editor accepts only the supported literal fields, refusing executable custom
 source intact. Advanced fields are optional for ordinary legacy four-field
-abilities, so their existing create/update and Example behavior remains valid.
+abilities, so their existing create/update and update behavior remains valid.
 New template runtimes require their complete per-kind settings with no defaults
 in the Skill source. Melee installs or reuses matching
 `ReplicatedStorage.CombatForge.Runtime.Hitbox`; edited or conflicting dependencies
@@ -101,7 +101,7 @@ represent in the preview report an error rather than changing the config.
 
 **Save** writes only the geometry into that config and provides one Undo/Redo
 action. Other settings are preserved. Stale/moved/renamed configs must be reopened.
-**Cancel** discards the draft. Navigating away, closing the widget, losing the
+**Back** asks before discarding a changed draft. Navigating away, closing the widget, losing the
 reference dummy/root, switching the active Studio tool or entering Play removes
 the preview. Previewing does not change the dummy, source or change history and
 creates no saved workspace Part. The editor supports melee boxes; projectile,
@@ -153,11 +153,11 @@ intact; adding offsets alone cannot update old runtime code.
    subsequent valid attacks and resources after unequip, death and respawn.
 7. While playing, attempt template generation: expect an error and no mutations.
    In Edit mode, conflict with the melee Hitbox path: creation must report the
-   conflict without replacing it. Confirm existing menu/editor/example actions.
+   conflict without replacing it. Confirm existing menu/editor actions.
 
 8. Open Edit Hitbox for a current melee config, select R6 then R15 dummies and
    drag all Move/Resize faces. Rotate/move the reference and verify alignment.
-   Save, undo/redo and compare actual Play hit geometry. Cancel after dragging and
+   Save, undo/redo and compare actual Play hit geometry. Use Back and Discard changes after dragging and
    confirm unchanged source/history. Close the widget, navigate away, delete the
    reference and enter Play during preview: all temporary visuals must disappear.
    Try a stale source edit and invalid selection. Save/reopen the place and confirm
@@ -182,7 +182,7 @@ triple in degrees; all absent means identity. New melee configs use zeroes. The
 orientation is `CFrame.fromOrientation(rad(X), rad(Y), rad(Z))` (Y-X-Z), applied
 after the root-local center translation. Rotation does not orbit the offset.
 The editor displays equivalent normalized degree values. Save writes all geometry
-in one undo record; Cancel discards the draft. Ordinary skill updates preserve
+in one undo record; Back can discard the draft after confirmation. Ordinary skill updates preserve
 rotation. Existing copied Tools are preserved: generate a fresh melee Tool or
 manually port its updated GetConfig, Validate and Cast to consume rotation.
 
@@ -197,8 +197,8 @@ three dimensions proportionally while holding the opposite face center fixed;
 the other corners of that face may move. Release Shift to restore single-axis scaling. Each completed
 geometry gesture is one local Undo step. Undo also works with preview off; during
 a drag it restores the drag's starting geometry. Preview/tool/scale toggles are not
-history edits. Save creates the normal single config Undo record; Cancel discards
-the draft. Neither operation makes local gestures native Studio history.
+history edits. Save creates the normal single config Undo record; Back can discard
+the draft after confirmation. Neither operation makes local gestures native Studio history.
 
 Numbers display three decimal places without rounding untouched stored values.
 Normal preview termination reads `Preview Ended`; errors retain specific guidance
@@ -228,4 +228,31 @@ Home always opens the main menu. Back follows visual editor -> selected skill ->
 Update Skills list -> menu; Settings, Create and Templates return to the menu.
 Dirty common or visual drafts ask Keep editing or Discard changes and retain the
 requested destination. Keep editing preserves draft/history/preview; explicit
-Cancel discards the visual draft. Save failures retain the page and draft.
+Back asks before discarding the visual draft. Save failures retain the page and draft.
+
+
+### Pinned navigation, reset and snapping
+
+Home and Back stay in a fixed top-left strip while content scrolls. Root menu
+navigation is disabled. Settings separates keybinds, snapping, theme controls and
+sharing with labeled dividers. Back replaces redundant Cancel navigation; dirty
+drafts still offer Keep editing or Discard changes.
+
+Reset Hitbox changes draft geometry only to 5 x 5 x 6 studs with zero offsets and
+rotations, so its default center is (0, 0, -3) in root space. A changed reset is one
+local Undo action and works with preview off. No-op resets add no history.
+
+Snapping initially defaults off. Configure positive finite Move/Resize increments
+in studs and Rotate increment in degrees in Settings; defaults are 1/1/15.
+Preferences persist independently of theme/keybinds/configs. Snapping rounds each
+signed gesture delta from mouse-down to the nearest increment, with half ties away
+from zero. Uniform Resize snaps the selected face distance before scaling ratios;
+minimum limits follow rounding. Switching snapping during a drag finalizes it;
+grab again for the next gesture. Reset/Undo restore exact values without snapping.
+
+Preview: On/Off reports actual box visibility. Undo shows the configured chord,
+such as Undo (Ctrl + Alt + Z), or Undo (Unbound). Runtime setup runs once on Edit
+startup, preserves any existing unique Hitbox module verbatim, and never reinstalls
+in response to user Undo. Conflicts/errors can be retried through Install Hitbox
+Module. Existing differing runtime source may still be incompatible with newly
+generated melee templates; template creation keeps its version protection.

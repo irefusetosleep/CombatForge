@@ -44,7 +44,7 @@ return function(UI, actions)
   check(root.ConfirmDelete.BackgroundColor3 == Color3.fromRGB(190, 45, 55)
    and root.ConfirmDelete.TextColor3 == Color3.new(1, 1, 1), "Confirm has readable white on dark red")
   local cancelledConfirm = actions.ConfirmDelete
-  actions.CancelDelete()
+  actions.Back()
   cancelledConfirm()
   check(calls == 0 and #skills == 2 and root.SkillRow1.Skill1.Text == "Slash", "Cancel and stale confirm cannot delete")
   actions.DeleteSkill1()
@@ -55,7 +55,7 @@ return function(UI, actions)
   mode = "throw"
   actions.ConfirmDelete()
   check(calls == 2 and root.DeleteStatus.Text:find("Delete unavailable", 1, true), "Thrown failure is visible and retry stays available")
-  actions.CancelDelete()
+  actions.Back()
   actions.DeleteSkill1()
   mode = "success"
   local confirmOnce = actions.ConfirmDelete

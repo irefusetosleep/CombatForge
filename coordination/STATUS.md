@@ -1,32 +1,35 @@
 # Current coordination state
 
-VISUAL-HITBOX-07 completed: Settings keybinds, themed controls, Home/Back navigation,
-Shift Uniform resize and Global Axis move/rotation. Specification is
-coordination/specs/VISUAL-HITBOX-07.md; no open questions.
+VISUAL-HITBOX-08 completed, installed and committed 2026-10-17. See git log for revision.
+Spec: coordination/specs/VISUAL-HITBOX-08.md. Base fce7d80. No open questions.
+Native Planner, Coder, Tester and read-only Reviewer stages completed.
 
-Planner finalized seven acceptance criteria. Coder implemented production and docs;
-Tester owned independent fixtures and regressions; Reviewer remained read-only.
-Coordinator integrated, executed Studio checks and installed the local revision.
-All seven criteria passed their automated acceptance checks. Reviewer verdict:
-Approved based on available evidence.
+Delivered Settings dividers, distinct pinned Home/Back, redundant Cancel removal,
+plain skill captions, Preview: On/Off and actual Undo chord labels, geometry-only
+Reset Hitbox, persistent optional Move/Resize/Rotate snapping, one-shot safe Edit
+runtime ensure, verified thumbnail branding resolver and legacy Example removal.
+Existing place Tools/modules remain preserved. Basic templates remain packaged.
+Manual runtime retry status now survives navigation.
 
-Evidence: 1,967 full-harness assertions and 66 logo-startup assertions passed in
-Studio (2,033 total). Native engine checks verified world-aligned Move/Rotate handles,
-local restoration, box-local Shift Uniform resize, no modifier-only undo entry and
-cleanup. RunState signal connection/disconnection passed. Temporary WorldModels and
-CoreGui probes were removed. Build, package validation and diff checks passed.
+Verification: AC01-08 passed isolated assertions, 2178 full-harness + 70 separate
+logo startup assertions = 2248. Actual WorldModel spatial queries included.
+First startup failure was a test fixture passing fake game through an overwritten
+globals slot; Tester fixed service injection and full suite passed afterward.
+Rojo build, scripts/Test-PluginPackage.ps1 and git diff --check passed.
+Reviewer: Approved based on available evidence; no blocking findings.
 
-Review found a Play-transition key-capture defect. RunState cleanup and defensive
-input guards fixed it; independent tests verify capture cancellation and no Shift
-relatch during Play. Keybinds use a separate validated plugin setting; native
-Ctrl+Z/Y remain untouched. Prior five hitbox PluginActions are retired to prevent
-double dispatch; OpenEditor remains available.
+Installed through scripts/Install-Plugin.ps1, package/hash verified. Backup:
+build/plugin-backups/CombatForge-20261017-211733-4175475.rbxmx.
+No publication/push or persistent Studio test content changes.
 
-Installed with scripts/Install-Plugin.ps1, backup and matching hash. Existing saved
-Tools and runtime modules were preserved. No runtime/config schema changes.
+Native logo evidence: direct image IDs failed preload despite completed thumbnails;
+rbxthumb://type=Asset&id=118596951641724&w=150&h=150 succeeded (420 also).
+Existing artwork/ID preserved; safe fallback remains. Underlying direct failure
+cause unconfirmed. No claim of failed upload or pending moderation.
 
-Manual checks NOT RUN: physical keyboard capture/delivery and Studio shortcut
-priority, pointer/ring direction, visual theme appearance, interactive navigation
-prompts and native Save Undo/Redo. Restart Studio, configure Settings keybinds,
-check Home/Back and Shift transforms. Changing Shift/root during a drag finishes
-that gesture safely; grab a handle again for the new coordinate mode.
+Manual checks NOT RUN: actual toolbar appearance; pinned nav narrow/scroll layout;
+native pointer/keyboard Snap/Shift gestures; settings persistence across reload;
+native startup installation Undo/redo without reinstallation; real edited-runtime
+startup preservation and physical dirty Home/Back interactions. Isolated tests do
+not prove these. Save place/restart Studio to load the installed revision, then
+check these interactions. Existing edited Hitbox is never silently upgraded.
