@@ -1,4 +1,4 @@
--- VISUAL-HITBOX-04 AC03/04: complete optional finite signed offset triples.
+-- VISUAL-HITBOX-05 AC03/04: complete optional finite signed offset triples.
 return function(Config)
  local count=0
  local function check(value,message) assert(value,message); count+=1 end
@@ -23,6 +23,26 @@ return function(Config)
   for _,bad in {0/0,math.huge,-math.huge,"2",false} do
    local full=table.clone(base); full.HitboxOffsetX=0; full.HitboxOffsetY=0; full.HitboxOffsetZ=0; full[key]=bad
    check(Config.validateConfig(full)==nil,"AC04 Invalid offset type/nonfinite rejected "..key)
+  end
+ end
+ check(absent.HitboxRotationX==nil and absent.HitboxRotationY==nil and absent.HitboxRotationZ==nil,"AC04 Absent rotations preserved by schema")
+ for _,values in {{0,0,0},{31,-47,19},{90,180,-270},{1e300,-1e300,.000001}} do
+  local full=table.clone(base)
+  full.HitboxRotationX=values[1]; full.HitboxRotationY=values[2]; full.HitboxRotationZ=values[3]
+  local parsed=assert(Config.parse(Config.serialize(full)))
+  check(parsed.HitboxRotationX==values[1] and parsed.HitboxRotationY==values[2] and parsed.HitboxRotationZ==values[3],"AC04 Finite degree rotations round-trip without arbitrary bounds")
+ end
+ for mask=1,6 do
+  local partial=table.clone(base)
+  if bit32.band(mask,1)~=0 then partial.HitboxRotationX=0 end
+  if bit32.band(mask,2)~=0 then partial.HitboxRotationY=0 end
+  if bit32.band(mask,4)~=0 then partial.HitboxRotationZ=0 end
+  check(Config.validateConfig(partial)==nil,"AC04 Partial rotation triple rejected "..mask)
+ end
+ for _,key in {"HitboxRotationX","HitboxRotationY","HitboxRotationZ"} do
+  for _,bad in {0/0,math.huge,-math.huge,"2",false} do
+   local full=table.clone(base); full.HitboxRotationX=0; full.HitboxRotationY=0; full.HitboxRotationZ=0; full[key]=bad
+   check(Config.validateConfig(full)==nil,"AC04 Invalid rotation type/nonfinite rejected "..key)
   end
  end
  return tostring(count).." visual hitbox offset schema assertions passed"

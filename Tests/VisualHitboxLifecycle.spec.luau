@@ -23,13 +23,23 @@ return function(loadEditor)
  local selection={first}
  local running=false
  local render=signal()
- local handles
+ local handles,arcs
+ local hiddenBeforeParent=true
+ local geometryBeforeAdornee=true
  local editor=loadEditor({Selection={Get=function() return selection end},RunService={IsRunning=function() return running end,RenderStepped=render},CoreGui=core}, {
   workspace=world,Instance={new=function(class)
-   if class~="Handles" then return Instance.new(class) end
-   handles={MouseButton1Down=signal(),MouseButton1Up=signal(),MouseDrag=signal(),destroyed=false}
-   function handles:Destroy() self.destroyed=true end
-   return handles
+   if class~="Handles" and class~="ArcHandles" then return Instance.new(class) end
+   local properties={MouseButton1Down=signal(),MouseButton1Up=signal(),MouseDrag=signal(),destroyed=false}
+   local control=setmetatable({}, {__index=properties,__newindex=function(_,key,value)
+    if key=="Parent" or key=="Adornee" then hiddenBeforeParent=hiddenBeforeParent and properties.Visible==false end
+    if key=="Adornee" then
+     geometryBeforeAdornee=geometryBeforeAdornee and value.Size==Vector3.new(5,5,6) and (value.Position-(root.CFrame*CFrame.new(0,0,-3)).Position).Magnitude<.00001
+    end
+    properties[key]=value
+   end})
+   function control:Destroy() self.destroyed=true end
+   if class=="Handles" then handles=control else arcs=control end
+   return control
   end},
  })
  local activates,deactivates=0,0
@@ -65,28 +75,53 @@ return function(loadEditor)
   check(not proxy.Archivable and not gui.Archivable and not box.Archivable,"AC05 Preview objects marked transient")
   for _,face in {Enum.NormalId.Left,Enum.NormalId.Right,Enum.NormalId.Top,Enum.NormalId.Bottom,Enum.NormalId.Front,Enum.NormalId.Back} do check(handles.Faces[face.Name],"AC02 Visible handles include face "..face.Name) end
   check(root.CFrame==beforeRoot and #first:GetChildren()==2,"AC05 Opening does not alter dummy")
-  handles.MouseButton1Down:Fire(); handles.MouseDrag:Fire(Enum.NormalId.Right,2); handles.MouseDrag:Fire(Enum.NormalId.Right,3)
+  check(geometryBeforeAdornee,"AC01 Valid box geometry initialized before control Adornee assignment")
+  check(hiddenBeforeParent and handles.Visible==false and arcs.Visible==false,"AC01 Both controls hidden before parent/Adornee assignment and default Preview")
+  handles.MouseButton1Down:Fire(Enum.NormalId.Right); handles.MouseDrag:Fire(Enum.NormalId.Right,8)
+  arcs.MouseButton1Down:Fire(Enum.Axis.X); arcs.MouseDrag:Fire(Enum.Axis.X,.7,0)
+  check(session.getDraft().HitboxOffsetX==0 and session.getDraft().HitboxRotationX==0,"AC01 Preview ignores stray handle events")
+  check(session.setMode("Move") and handles.Visible and not arcs.Visible,"AC01 Move exposes only Handles")
+  handles.MouseButton1Down:Fire(Enum.NormalId.Right); handles.MouseDrag:Fire(Enum.NormalId.Right,2); handles.MouseDrag:Fire(Enum.NormalId.Right,3)
   check(session.getDraft().HitboxOffsetX==3,"AC02 Live drag uses mouse-down baseline instead of accumulated delta")
-  handles.MouseButton1Up:Fire(); handles.MouseDrag:Fire(Enum.NormalId.Right,8)
+  handles.MouseButton1Up:Fire(Enum.NormalId.Right); handles.MouseDrag:Fire(Enum.NormalId.Right,8)
   check(session.getDraft().HitboxOffsetX==3,"AC02 Drag without mouse-down cannot mutate draft")
-  check(session.setMode("Resize"),"AC02 Resize mode available")
-  handles.MouseButton1Down:Fire(); handles.MouseDrag:Fire(Enum.NormalId.Front,2); handles.MouseButton1Up:Fire()
+  check(session.setMode("Resize") and handles.Visible and not arcs.Visible,"AC02 Resize mode available")
+  handles.MouseButton1Down:Fire(Enum.NormalId.Front); handles.MouseDrag:Fire(Enum.NormalId.Front,2); handles.MouseButton1Up:Fire(Enum.NormalId.Front)
   local draft=session.getDraft()
-  check(draft.Range==10 and draft.HitboxOffsetZ==2,"AC02 Live resize depth keeps box center")
+  check(draft.Range==8 and draft.HitboxOffsetZ==0,"AC02 Live one-sided front resize preserves opposite face")
   local capturedDraft=session.getDraft(); capturedDraft.Range=999
-  check(session.getDraft().Range==10,"AC05 Exposed draft is a copy")
+  check(session.getDraft().Range==8,"AC05 Exposed draft is a copy")
+  check(session.setMode("Rotate") and not handles.Visible and arcs.Visible,"AC03 Rotate exposes only ArcHandles")
+  local prior=proxy.CFrame
+  arcs.MouseButton1Down:Fire(Enum.Axis.Y); arcs.MouseDrag:Fire(Enum.Axis.Y,.4,0); arcs.MouseDrag:Fire(Enum.Axis.Y,.7,0)
+  local rotated=proxy.CFrame
+  check(near(prior.Position,rotated.Position) and near(rotated.RightVector,(prior.Rotation*CFrame.fromAxisAngle(Vector3.yAxis,.7)).RightVector),"AC03 Arc drag baseline local rotation keeps center fixed")
+  local beforeOtherAxis=proxy.CFrame
+  arcs.MouseDrag:Fire(Enum.Axis.X,1.2,0)
+  check(proxy.CFrame==beforeOtherAxis,"AC03 Axis-mismatched drag ignored")
+  arcs.MouseButton1Up:Fire(Enum.Axis.X); arcs.MouseDrag:Fire(Enum.Axis.Y,.9,0)
+  check(near(proxy.CFrame.RightVector,(prior.Rotation*CFrame.fromAxisAngle(Vector3.yAxis,.9)).RightVector),"AC03 Stale other-axis mouse-up does not cancel active drag")
+  arcs.MouseButton1Up:Fire(Enum.Axis.Y)
+  check(session.setMode("Preview") and not handles.Visible and not arcs.Visible,"AC03 Preview hides both controls retaining draft")
+  local preserved=session.getDraft().HitboxRotationY
+  arcs.MouseButton1Down:Fire(Enum.Axis.Y); arcs.MouseDrag:Fire(Enum.Axis.Y,2,0)
+  check(session.getDraft().HitboxRotationY==preserved,"AC03 Hidden ArcHandles cannot change draft")
+  session.setMode("Move"); handles.MouseButton1Down:Fire(Enum.NormalId.Top)
+  session.setMode("Resize"); handles.MouseDrag:Fire(Enum.NormalId.Top,4)
+  check(session.getDraft().HitboxHeight==5,"AC03 Mode switch clears unfinished baseline")
   selection={second}; render:Fire()
-  check(box.Adornee==root and session.getDraft().Range==10,"AC01 Later selection never silently retargets session")
+  check(box.Adornee==root and session.getDraft().Range==8,"AC01 Later selection never silently retargets session")
   root.CFrame=CFrame.new(9,5,-4)*CFrame.Angles(.1,-1.2,.2); render:Fire()
-  check(near(proxy.Position,(root.CFrame*CFrame.new(3,0,-3)).Position),"AC02 Root movement/rotation refreshes preview transform")
+  check(near(proxy.Position,(root.CFrame*CFrame.new(3,0,-4)).Position),"AC02 Root movement/rotation refreshes preview transform")
   for key,value in source do check(config[key]==value,"AC05 Preview preserves config "..key) end
   session.destroy()
-  check(handles.destroyed and #core:GetChildren()==0 and activeConnections==0,"AC05 Cancel destroys preview and disconnects all listeners")
+  check(handles.destroyed and arcs.destroyed and #core:GetChildren()==0 and activeConnections==0,"AC05 Cancel destroys preview and disconnects all listeners")
   local afterDestroy=deactivates; session.destroy()
   check(deactivates==afterDestroy,"AC05 Session destroy is idempotent")
   for _,ending in {"replace","deactivation","unload","play","rootLoss","humanoidLoss"} do
    selection={first}; running=false
-   local old=assert(begin()); local oldHandles=handles
+   local old=assert(begin()); local oldHandles=handles; local oldArcs=arcs
+   old.setMode("Rotate"); oldArcs.MouseButton1Down:Fire(Enum.Axis.Z)
    if ending=="replace" then
     local replacement=assert(begin()); check(oldHandles.destroyed,"AC05 Starting another session retires first"); replacement.destroy()
    elseif ending=="deactivation" then plugin.Deactivation:Fire()
@@ -94,7 +129,9 @@ return function(loadEditor)
    elseif ending=="play" then running=true; render:Fire(); running=false
    elseif ending=="rootLoss" then root.Parent=nil; render:Fire(); root.Parent=first
    else local humanoid=first:FindFirstChildOfClass("Humanoid"); humanoid.Parent=nil; render:Fire(); humanoid.Parent=first end
-   check(oldHandles.destroyed and #core:GetChildren()==0 and activeConnections==0,"AC05 Cleanup on "..ending)
+   check(oldHandles.destroyed and oldArcs.destroyed and #core:GetChildren()==0 and activeConnections==0,"AC05 Cleanup on "..ending)
+   local oldDraft=old.getDraft(); oldArcs.MouseDrag:Fire(Enum.Axis.Z,2,0)
+   check(old.getDraft().HitboxRotationZ==oldDraft.HitboxRotationZ,"AC05 Ended drag callbacks cannot mutate draft")
    check(not old.setMode("Move"),"AC05 Ended session cannot reactivate handles")
   end
   check(stops>=4 and type(lastMessage)=="string" and changes>=4,"AC05 Lifecycle endings provide guidance and draft changes are reported")

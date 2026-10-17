@@ -8,7 +8,7 @@ return function(UI,actions,Config)
  local reads,saves,starts,destroys=0,0,0,0
  local saveMode="fail"
  local lastSnapshot,lastSaved,lastMode
- local draft={HitboxWidth=9,HitboxHeight=7,Range=12,HitboxOffsetX=2,HitboxOffsetY=-1,HitboxOffsetZ=3}
+ local draft={HitboxWidth=9,HitboxHeight=7,Range=12,HitboxOffsetX=2,HitboxOffsetY=-1,HitboxOffsetZ=3,HitboxRotationX=31,HitboxRotationY=-47,HitboxRotationZ=19}
  local alive=false
  local manager={list=function() return {target},nil end,read=function()
   reads+=1; return {module=target,name=target.Name,source=Config.serialize(data),config=table.clone(data)},nil
@@ -37,10 +37,17 @@ return function(UI,actions,Config)
   actions.UpdateSkills(); actions.Skill1()
   check(root.EditHitbox.Text=="Edit Hitbox","AC01 Eligible config exposes visual entry")
   actions.EditHitbox()
-  check(root.Heading.Text=="Edit Hitbox: MenuMelee" and root.HitboxInstructions.Text:find("studs",1,true),"AC01 Selected ability/instructions shown")
-  actions.SaveHitbox(); check(saves==0 and root.HitboxStatus.Text:find("Start Preview",1,true),"AC03 Save cannot run before preview")
-  actions.HitboxMove(); check(lastMode==nil,"AC02 Mode guarded before preview")
-  startMode="failure"; actions.StartHitboxPreview()
+  check(root.Heading.Text=="Edit Hitbox: MenuMelee" and root.HitboxInstructions.Text:find("selected dummy",1,true),"AC01 Selected ability/instructions shown")
+  check(starts==1 and alive,"AC01 Entry automatically starts exactly one preview")
+  check(root.HitboxReadout.Text:find("31",1,true) and root.HitboxReadout.Text:find("-47",1,true),"AC03 Rotation degree readout shown")
+  actions.HitboxRotate(); check(lastMode=="Rotate","AC03 Rotate dispatch")
+  actions.HitboxPreview(); check(lastMode=="Preview","AC01 Preview dispatch")
+  actions.CancelHitbox(); check(not alive and destroys==1,"AC05 Initial auto preview can cancel without saving")
+  startMode="failure"; actions.EditHitbox()
+  check(starts==2 and not alive,"AC01 Invalid initial selection retains retry without session")
+  actions.SaveHitbox(); check(saves==0,"AC01 Save cannot run without preview")
+  actions.HitboxMove(); check(lastMode=="Preview","AC01 Mode guarded without preview")
+  actions.StartHitboxPreview()
   check(root.HitboxStatus.Text=="Select one valid dummy." and not alive,"AC01 Invalid selection guidance")
   startMode="success"; actions.StartHitboxPreview()
   check(alive and root.HitboxReadout.Text:find("9 x 7 x 12",1,true) and root.HitboxReadout.Text:find("X 2",1,true),"AC02 Current draft dimensions/local offsets displayed")
@@ -48,18 +55,18 @@ return function(UI,actions,Config)
   actions.HitboxMove(); check(lastMode=="Move","AC02 Move dispatch")
   actions.SaveHitbox()
   check(saves==1 and alive and root.HitboxStatus.Text=="Skill changed; reopen.","AC03 Save failure preserves draft with error")
-  check(lastSnapshot.module==target and lastSaved.HitboxWidth==9 and lastSaved.HitboxOffsetZ==3,"AC03 Save uses exact snapshot and draft")
+  check(lastSnapshot.module==target and lastSaved.HitboxWidth==9 and lastSaved.HitboxOffsetZ==3 and lastSaved.HitboxRotationY==-47,"AC03 Save uses exact snapshot and draft")
   saveMode="throw"; actions.SaveHitbox()
   check(alive and root.HitboxStatus.Text:find("Injected save exception",1,true),"AC03 Thrown save failure remains visible")
   local beforeReads=reads
   saveMode="success"; actions.SaveHitbox()
-  check(not alive and destroys==1 and reads==beforeReads+1,"AC03 Successful Save closes session and reloads snapshot")
+  check(not alive and destroys==2 and reads==beforeReads+1,"AC03 Successful Save closes session and reloads snapshot")
   check(root.RangeInput.Text=="12" and root.Status.Text=="Saved visual geometry.","AC03 Returns to refreshed common editor with success")
-  actions.EditHitbox(); actions.StartHitboxPreview(); local beforeSaves=saves
+  actions.EditHitbox(); local beforeSaves=saves
   actions.CancelHitbox()
-  check(not alive and destroys==2 and saves==beforeSaves and root.EditHitbox~=nil,"AC05 Cancel ends preview without saving")
-  actions.EditHitbox(); actions.StartHitboxPreview(); host.Enabled=false; task.wait()
-  check(not alive and destroys==3,"AC05 Widget closure ends preview")
+  check(not alive and destroys==3 and saves==beforeSaves and root.EditHitbox~=nil,"AC05 Cancel ends preview without saving")
+  actions.EditHitbox(); host.Enabled=false; task.wait()
+  check(not alive and destroys==4,"AC05 Widget closure ends preview")
   host.Enabled=true; actions.StartHitboxPreview()
   local beforeDestroy=destroys
   root:Destroy()

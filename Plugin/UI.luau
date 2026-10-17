@@ -281,13 +281,13 @@ function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), 
  showHitbox = function(snapshot)
   reset()
   label("Heading", "Edit Hitbox: " .. snapshot.name, 24)
-  label("HitboxInstructions", "Select an existing dummy Model (or one of its parts), then Start Preview. Move changes root-local offsets; Resize changes width, height and depth around the current center. All values are studs. Selection changes do not retarget a running preview.", 14)
+  label("HitboxInstructions", "Preview starts with the selected dummy. If none is selected, select one and use Start Preview. Move and Resize follow rotated box axes; Resize moves only the dragged face. Rotate turns around the box center. Selection changes do not retarget the preview.", 14)
   local readout = label("HitboxReadout", "No preview started.", 14)
   local status = label("HitboxStatus", "Changes remain a draft until Save. Cancel discards them.", 14)
   local function changed(draft)
-   readout.Text = string.format("Size: %.4g x %.4g x %.4g studs\nLocal offset: X %.4g, Y %.4g, Z %.4g studs", draft.HitboxWidth, draft.HitboxHeight, draft.Range, draft.HitboxOffsetX, draft.HitboxOffsetY, draft.HitboxOffsetZ)
+   readout.Text = string.format("Size: %.4g x %.4g x %.4g studs\nLocal offset: X %.4g, Y %.4g, Z %.4g studs\nRotation: X %.4g, Y %.4g, Z %.4g degrees", draft.HitboxWidth, draft.HitboxHeight, draft.Range, draft.HitboxOffsetX, draft.HitboxOffsetY, draft.HitboxOffsetZ, draft.HitboxRotationX or 0, draft.HitboxRotationY or 0, draft.HitboxRotationZ or 0)
   end
-  button("StartHitboxPreview", "Start Preview", function()
+  local function startPreview()
    closePreview()
    local session, message = hitboxEditor.start(snapshot.config, changed, function(reason)
     previewSession = nil
@@ -296,12 +296,13 @@ function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), 
    previewSession = session
    status.Text = message or "Could not start preview."
    status.TextColor3 = if session then palette.text else red
-  end)
-  for _, mode in { "Move", "Resize" } do
+  end
+  button("StartHitboxPreview", "Start Preview", startPreview)
+  for _, mode in { "Preview", "Move", "Resize", "Rotate" } do
    button("Hitbox" .. mode, mode, function()
     if not previewSession then status.Text = "Start Preview first."; status.TextColor3 = red; return end
     previewSession.setMode(mode)
-    status.Text = mode .. " mode. Drag a handle; values are studs."
+    status.Text = if mode == "Preview" then "Preview mode. Handles hidden." elseif mode == "Rotate" then "Rotate mode. Drag an axis ring; angles are degrees." else mode .. " mode. Drag a handle; values are studs."
     status.TextColor3 = palette.text
    end)
   end
@@ -326,6 +327,7 @@ function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), 
    end
   end, true)
   button("CancelHitbox", "Cancel", function() showForm(snapshot) end)
+  startPreview()
  end
  local function showDelete(module: ModuleScript, expectedName: string)
   reset()

@@ -22,7 +22,7 @@ function Skill.GetConfig()
 	if type(shared) ~= "table" then return unavailable("config must return a settings table") end
 	-- Capture scalar values once; delayed attacks never reread a mutable required table.
 	local config = {}
-	for _, key in { "Name", "Damage", "Cooldown", "Range", "AnimationId", "HitDelay", "HitboxWidth", "HitboxHeight", "HitboxOffsetX", "HitboxOffsetY", "HitboxOffsetZ" } do config[key] = shared[key] end
+	for _, key in { "Name", "Damage", "Cooldown", "Range", "AnimationId", "HitDelay", "HitboxWidth", "HitboxHeight", "HitboxOffsetX", "HitboxOffsetY", "HitboxOffsetZ", "HitboxRotationX", "HitboxRotationY", "HitboxRotationZ" } do config[key] = shared[key] end
 	if not Skill.Validate(config) then return unavailable("config has missing or invalid required settings") end
 	if config.HitboxOffsetX == nil then
 		config.HitboxOffsetX = 0; config.HitboxOffsetY = 0; config.HitboxOffsetZ = 0
@@ -51,6 +51,14 @@ function Skill.Validate(config): boolean
 		end
 	end
 	if offsets ~= 0 and offsets ~= 3 then return false end
+	local rotations = 0
+	for _, key in { "HitboxRotationX", "HitboxRotationY", "HitboxRotationZ" } do
+		if config[key] ~= nil then
+			rotations += 1
+			if not finite(config[key]) then return false end
+		end
+	end
+	if rotations ~= 0 and rotations ~= 3 then return false end
 	return true
 end
 function Skill.Cast(caster: Model, _aimPoint, isValid: () -> boolean, config)
@@ -58,7 +66,8 @@ function Skill.Cast(caster: Model, _aimPoint, isValid: () -> boolean, config)
 	if not isValid() then return end
 	local root = caster:FindFirstChild("HumanoidRootPart") :: BasePart
 	local Hitbox = require(Storage.CombatForge.Runtime.Hitbox)
-	local detector = Hitbox.Box(root.CFrame * CFrame.new(config.HitboxOffsetX or 0, config.HitboxOffsetY or 0, -config.Range / 2 + (config.HitboxOffsetZ or 0)),
+	local detector = Hitbox.Box(root.CFrame * CFrame.new(config.HitboxOffsetX or 0, config.HitboxOffsetY or 0, -config.Range / 2 + (config.HitboxOffsetZ or 0))
+		* CFrame.fromOrientation(math.rad((config.HitboxRotationX or 0) % 360), math.rad((config.HitboxRotationY or 0) % 360), math.rad((config.HitboxRotationZ or 0) % 360)),
 		Vector3.new(config.HitboxWidth, config.HitboxHeight, config.Range), { Caster = caster })
 	local ok, hits = pcall(function() return detector:Cast() end)
 	detector:Destroy()

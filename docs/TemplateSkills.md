@@ -87,15 +87,15 @@ disabled inside the plugin and only generated copies are enabled.
 
 Open **Update Skills**, select a complete melee config and choose **Edit Hitbox**.
 Save any unsaved common-field edits first. Select an existing R6/R15 dummy Model
-(or one of its descendants) in Workspace, then choose **Start Preview**. The dummy
+(or one of its descendants) in Workspace before opening the editor for automatic
+Preview. If selection is invalid, select a dummy and use **Start Preview**. The dummy
 must contain a Humanoid and a BasePart named HumanoidRootPart. Selecting multiple
 dummy models is refused. Changing selection after starting does not retarget it.
 
-Choose **Move** to edit the box's root-local offset, or **Resize** to change its
+Choose **Move** to edit the box's root-local offset along rotated box axes, or **Resize** to change its
 width (X), height (Y) or Range/depth (Z). Drag a visible handle; the readouts show
 size and offsets in studs. Positive X is root-right, positive Y is up, and negative
-Z is forward. Resizing preserves the box center while moving the opposite faces
-symmetrically. Handle drags use a 0.05-stud minimum dimension; opening an existing
+Z is forward. Resizing moves only the dragged face, keeping the opposite face fixed. Handle drags use a 0.05-stud minimum dimension; opening an existing
 smaller positive box does not change its settings. Sizes that Studio cannot
 represent in the preview report an error rather than changing the config.
 
@@ -105,7 +105,7 @@ action. Other settings are preserved. Stale/moved/renamed configs must be reopen
 reference dummy/root, switching the active Studio tool or entering Play removes
 the preview. Previewing does not change the dummy, source or change history and
 creates no saved workspace Part. The editor supports melee boxes; projectile,
-rotation and custom executable configs are outside its scope.
+and custom executable configs are outside its scope.
 
 New melee configs contain HitboxOffsetX/Y/Z = 0. For older supported configs,
 omitting all three means zero offsets; a partial triple is invalid. The preview
@@ -113,7 +113,8 @@ and current melee runtime both use:
 
 ```luau
 size = Vector3.new(HitboxWidth, HitboxHeight, Range)
-center = root.CFrame * CFrame.new(HitboxOffsetX, HitboxOffsetY, -Range/2 + HitboxOffsetZ)
+box = root.CFrame * CFrame.new(HitboxOffsetX, HitboxOffsetY, -Range/2 + HitboxOffsetZ)
+    * CFrame.fromOrientation(math.rad(HitboxRotationX % 360), math.rad(HitboxRotationY % 360), math.rad(HitboxRotationZ % 360))
 ```
 
 Older copied Skill code does not consume new offsets automatically. Generate a
@@ -165,3 +166,22 @@ intact; adding offsets alone cannot update old runtime code.
 
 These steps require actual Studio input, physics/queries, rendering, animation
 permissions and native change history. Isolated tests cannot prove those results.
+
+
+### Preview, resize and rotation
+
+Edit Hitbox immediately previews the selected dummy, with manipulation handles
+hidden. If selection is invalid, select an existing dummy and click Start Preview.
+Preview hides controls without losing the draft; Move, Resize and Rotate expose
+only their own controls. Resize moves the dragged face while keeping its opposite
+face fixed, with a 0.05-stud minimum on the dragged dimension. Move and resize use
+the rotated box axes. Rotation rings turn around the box center.
+
+`HitboxRotationX`, `HitboxRotationY` and `HitboxRotationZ` are a complete optional
+triple in degrees; all absent means identity. New melee configs use zeroes. The
+orientation is `CFrame.fromOrientation(rad(X), rad(Y), rad(Z))` (Y-X-Z), applied
+after the root-local center translation. Rotation does not orbit the offset.
+The editor displays equivalent normalized degree values. Save writes all geometry
+in one undo record; Cancel discards the draft. Ordinary skill updates preserve
+rotation. Existing copied Tools are preserved: generate a fresh melee Tool or
+manually port its updated GetConfig, Validate and Cast to consume rotation.

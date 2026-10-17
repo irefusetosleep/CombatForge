@@ -1,4 +1,4 @@
--- VISUAL-HITBOX-04 AC03/04: checked saves with isolated services/history.
+-- VISUAL-HITBOX-05 AC03/04: checked saves with isolated services/history.
 return function(Config,loadManager)
  local count=0
  local function check(value,message) assert(value,message); count+=1 end
@@ -25,7 +25,7 @@ return function(Config,loadManager)
    else cancels+=1; target.Source=recordedSource; target.Name=recordedName end
   end},
  })
- local geometry={HitboxWidth=9,HitboxHeight=4,Range=12,HitboxOffsetX=3,HitboxOffsetY=-2,HitboxOffsetZ=5}
+ local geometry={HitboxWidth=9,HitboxHeight=4,Range=12,HitboxOffsetX=3,HitboxOffsetY=-2,HitboxOffsetZ=5,HitboxRotationX=31,HitboxRotationY=-47,HitboxRotationZ=19}
  local ok,failure=pcall(function()
   local snapshot=assert(manager.read(target))
   check(manager.saveGeometry(snapshot,geometry),"AC03 Save complete visual geometry")
@@ -48,6 +48,12 @@ return function(Config,loadManager)
   end
   local partial=table.clone(geometry); partial.HitboxOffsetY=nil
   check(not manager.saveGeometry(assert(manager.read(target)),partial) and target.Source==after,"AC03 Partial geometry draft refused")
+  local partialRotation=table.clone(geometry); partialRotation.HitboxRotationY=nil
+  check(not manager.saveGeometry(assert(manager.read(target)),partialRotation) and target.Source==after,"AC04 Partial rotation geometry refused")
+  for _,bad in {0/0,math.huge,-math.huge} do
+   local invalid=table.clone(geometry); invalid.HitboxRotationZ=bad
+   check(not manager.saveGeometry(assert(manager.read(target)),invalid) and target.Source==after,"AC04 Nonfinite rotation save rejected")
+  end
   local injected=table.clone(geometry); injected.Name="OverwriteName"; injected.Damage=999
   manager.saveGeometry(assert(manager.read(target)),injected)
   parsed=assert(Config.parse(target.Source))
@@ -67,7 +73,7 @@ return function(Config,loadManager)
   end
   check(manager.update(assert(manager.read(target)),{Name="CommonRename",Damage="40",Cooldown="1",Range="14"}),"AC04 Common editor remains usable after visual saves")
   parsed=assert(Config.parse(target.Source))
-  for _,key in {"HitboxWidth","HitboxHeight","HitboxOffsetX","HitboxOffsetY","HitboxOffsetZ"} do check(parsed[key]==geometry[key],"AC04 Common save preserves geometry "..key) end
+  for _,key in {"HitboxWidth","HitboxHeight","HitboxOffsetX","HitboxOffsetY","HitboxOffsetZ","HitboxRotationX","HitboxRotationY","HitboxRotationZ"} do check(parsed[key]==geometry[key],"AC04 Common save preserves geometry "..key) end
   local tiny=table.clone(geometry); tiny.HitboxWidth=.001
   check(manager.saveGeometry(assert(manager.read(target)),tiny),"AC02 Parser/save retain valid dimensions below handle minimum")
   target.Source="error('never execute during save')"; local unsupported=target.Source

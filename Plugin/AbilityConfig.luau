@@ -8,11 +8,12 @@ export type Config = {
 	AnimationId: string?, HitDelay: number?, HitboxWidth: number?, HitboxHeight: number?,
 	ProjectileSpeed: number?, ProjectileRadius: number?, ProjectileLifetime: number?, AimMode: string?,
 	HitboxOffsetX: number?, HitboxOffsetY: number?, HitboxOffsetZ: number?,
+	HitboxRotationX: number?, HitboxRotationY: number?, HitboxRotationZ: number?,
 }
 local fields = {
 	"Name", "Damage", "Cooldown", "Range", "AnimationId", "HitDelay", "HitboxWidth", "HitboxHeight",
 	"ProjectileSpeed", "ProjectileRadius", "ProjectileLifetime", "AimMode",
-	"HitboxOffsetX", "HitboxOffsetY", "HitboxOffsetZ",
+	"HitboxOffsetX", "HitboxOffsetY", "HitboxOffsetZ", "HitboxRotationX", "HitboxRotationY", "HitboxRotationZ",
 }
 local supported: { [string]: boolean } = {}
 for _, field in fields do supported[field] = true end
@@ -55,6 +56,14 @@ function AbilityConfig.validateConfig(values): (Config?, string?)
 		end
 	end
 	if offsets ~= 0 and offsets ~= 3 then return nil, "Supply all three hitbox offsets or omit all three." end
+	local rotations = 0
+	for _, field in { "HitboxRotationX", "HitboxRotationY", "HitboxRotationZ" } do
+		if values[field] ~= nil then
+			rotations += 1
+			if not finite(values[field]) then return nil, field .. " must be a finite number." end
+		end
+	end
+	if rotations ~= 0 and rotations ~= 3 then return nil, "Supply all three hitbox rotations or omit all three." end
 	if values.AimMode ~= nil and values.AimMode ~= "Mouse" and values.AimMode ~= "Body" then return nil, "AimMode must be Mouse or Body." end
 	if values.AnimationId ~= nil then
 		if type(values.AnimationId) ~= "string" or #values.AnimationId > 1024 or values.AnimationId:find("[%z\1-\31\127]") then

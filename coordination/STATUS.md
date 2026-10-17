@@ -1,29 +1,32 @@
 # Current coordination state
 
-Task: VISUAL-HITBOX-04 — visual melee box authoring.
-Specification: coordination/specs/VISUAL-HITBOX-04.md. Open questions: none blocking.
-Planner (existing Astra Medium role) finalized the six acceptance criteria.
-Coder owns production modules, UI/startup wiring, project/package wiring and user docs.
-Tester owns Tests and isolated harness only; prepares independently while Coder works.
-Reviewer will review read-only after implementation and executed evidence.
-Coordinator owns integration, Studio checks, installation and commits.
+Task VISUAL-HITBOX-05: automatic preview, one-sided resize, rotation, no initial handles.
+Specification: coordination/specs/VISUAL-HITBOX-05.md, finalized by Astra Medium Planner
+before the credit interruption. No blocking questions. Clean base8f25b8a.
 
-Scope: select supported melee config and existing R6/R15 dummy, explicit preview,
-Move/Resize handles, readouts, checked Save or Cancel. Add signed local offset triple;
-all-absent compatibility means zero. No projectile/rotation editor, no automatic
-saved-Tool migration, no persistent preview or dummy creation. Config Save must
-preserve nongeometry fields, reject conflicts and support one undo recording.
-Cleanup on navigation/theme/hide/unload/Play/reference loss. Preview and runtime match.
+Resumed after interruption. Native handles were no longer live, so staged Coder and
+Tester roles recreated from saved workflow; Reviewer follows after executed evidence.
+Coder owns HitboxEditor/UI/AbilityConfig/AbilityManager/TemplateInstaller/MeleeSkill
+and TemplateSkills docs. Tester owns Tests only. Coordinator owns integration,
+STATUS/PROJECT, Studio checks, local installation and commits.
 
-Previous task TEMPLATE-ALL-CONFIG-03 committed e7e60a7: final825 isolated Studio
-assertions passed. Build/package/diff checks passed. Reviewer found no blockers;
-manual native Play/replication/animation/StarterPack/Undo remains not run.
-Existing Tool/runtime copies are preserved; fresh generation/manual port needed.
-Logo history: uploaded tight icon118596951641724, protected async fallback remains.
+Acceptance: initial Preview box auto-starts for selected dummy with all handles hidden;
+invalid selection shows retry; resize keeps opposite face fixed even after rotation;
+rotation uses complete optional finite degree XYZ triple and exact matching runtime;
+Save preserves unrelated fields/conflict/history protections; all lifecycle cleanup
+continues. No automatic saved-Tool migration or persistent preview objects.
 
-Planned evidence: offset schema/save/editor/runtime tests, existing regressions,
-Rojo/package validation and read-only review. Native pointer/handles and Undo checks
-will remain explicitly not run unless actually performed. Studio place mutation
-limits remain in PROJECT.md; no permanent test content authorized by this task.
-Final evidence:1019 full harness assertions +56 logo startup=1075 passed in Studio. One UI test required waiting for deferred Destroying dispatch; exact assertion retained. Actual native Handles/BoxAdornment factory,Resize mode and cleanup passed on temporary isolated WorldModel,removed afterward. Native pointer/render,real Play and Undo/Redo remain not run. Current Rojo/package/diff gates passed. Final Reviewer requested; local install next.
-Delivery: Reviewer verdict No blocking findings; verification incomplete (native pointer/Play/persistence/Undo not run). Installed through Install-Plugin.ps1 with backup and matching hash. AC01-05 implemented and covered by isolated/native factory evidence; AC06 automated/package/docs passed with native manual verification outstanding. User reloads Studio, generates fresh melee Tool, selects dummy and opens Update Skills -> skill -> Edit Hitbox.
+Prior delivery:1075 assertions passed for VISUAL-HITBOX-04; native pointer/Undo remained
+not run. Current task checks must be rerun for revised behavior. Workers cannot mutate
+Studio/install/commit. Re-list Studio before coordinator checks. See PROJECT.md limits.
+
+Completed VISUAL-HITBOX-05: all six ACs implemented. Final Studio harness1385
+assertions plus56 logo startup assertions=1441 passed. Actual native Handles and
+ArcHandles factory/property checks verified initial hidden Preview, exclusive
+Rotate/Resize controls and return-to-Preview hiding; isolated WorldModel removed.
+Build/package/default diff check passed. Reviewer: Approved based on available
+evidence. Native pointer/ring usability, Undo/Redo and actual Play comparison not run.
+Installed via Install-Plugin.ps1 with backup and matching hash. Existing copied
+Tools remain untouched; fresh generation/manual port needed for rotation in Play.
+Test expectations updated for the new interaction, nine geometry fields and14-field
+melee defaults. No permanent Studio content created by verification.

@@ -6,19 +6,30 @@ local RunService = game:GetService("RunService")
 local CoreGui = game:GetService("CoreGui")
 local HitboxEditor = {}
 local activeSession = nil
-local geometryKeys = { "HitboxWidth", "HitboxHeight", "Range", "HitboxOffsetX", "HitboxOffsetY", "HitboxOffsetZ" }
+local geometryKeys = { "HitboxWidth", "HitboxHeight", "Range", "HitboxOffsetX", "HitboxOffsetY", "HitboxOffsetZ", "HitboxRotationX", "HitboxRotationY", "HitboxRotationZ" }
 local function finite(value): boolean
 	return type(value) == "number" and value == value and math.abs(value) < math.huge
 end
 local function copy(draft)
 	local result = {}
-	for _, key in geometryKeys do result[key] = draft[key] end
+	for _, key in geometryKeys do result[key] = draft[key] or 0 end
 	return result
 end
 local function validGeometry(draft): boolean
 	if type(draft) ~= "table" then return false end
-	for _, key in geometryKeys do if not finite(draft[key]) then return false end end
-	return draft.HitboxWidth > 0 and draft.HitboxHeight > 0 and draft.Range > 0
+	for _, key in geometryKeys do if not finite(draft[key]) and not (key:match("^HitboxRotation") and draft[key] == nil) then return false end end
+	local count = 0
+	for _, key in { "HitboxRotationX", "HitboxRotationY", "HitboxRotationZ" } do if draft[key] ~= nil then count += 1 end end
+	return (count == 0 or count == 3) and draft.HitboxWidth > 0 and draft.HitboxHeight > 0 and draft.Range > 0
+end
+local function rotation(draft)
+	return CFrame.fromOrientation(math.rad((draft.HitboxRotationX or 0) % 360), math.rad((draft.HitboxRotationY or 0) % 360), math.rad((draft.HitboxRotationZ or 0) % 360))
+end
+local function center(draft)
+	return Vector3.new(draft.HitboxOffsetX, draft.HitboxOffsetY, -draft.Range / 2 + draft.HitboxOffsetZ)
+end
+local function setCenter(draft, value)
+	draft.HitboxOffsetX = value.X; draft.HitboxOffsetY = value.Y; draft.HitboxOffsetZ = value.Z + draft.Range / 2
 end
 function HitboxEditor.isSupported(config): boolean
 	return AbilityConfig.isMelee(config)
@@ -28,11 +39,12 @@ function HitboxEditor.newDraft(config)
 	return {
 		HitboxWidth = config.HitboxWidth, HitboxHeight = config.HitboxHeight, Range = config.Range,
 		HitboxOffsetX = config.HitboxOffsetX or 0, HitboxOffsetY = config.HitboxOffsetY or 0, HitboxOffsetZ = config.HitboxOffsetZ or 0,
+		HitboxRotationX = (((config.HitboxRotationX or 0) % 360) + 180) % 360 - 180, HitboxRotationY = (((config.HitboxRotationY or 0) % 360) + 180) % 360 - 180, HitboxRotationZ = (((config.HitboxRotationZ or 0) % 360) + 180) % 360 - 180,
 	}, nil
 end
 function HitboxEditor.transform(rootCFrame: CFrame, draft): (CFrame, Vector3)
 	assert(validGeometry(draft), "Invalid hitbox geometry")
-	return rootCFrame * CFrame.new(draft.HitboxOffsetX, draft.HitboxOffsetY, -draft.Range / 2 + draft.HitboxOffsetZ),
+	return rootCFrame * CFrame.new(center(draft)) * rotation(draft),
 		Vector3.new(draft.HitboxWidth, draft.HitboxHeight, draft.Range)
 end
 function HitboxEditor.drag(baseline, mode: string, face: Enum.NormalId, distance: number)
@@ -46,17 +58,29 @@ function HitboxEditor.drag(baseline, mode: string, face: Enum.NormalId, distance
 	elseif face == Enum.NormalId.Front then axis = "Z"; sign = -1
 	else return nil, "Unknown hitbox face." end
 	local draft = copy(baseline)
+	local normal = if axis == "X" then Vector3.new(sign, 0, 0) elseif axis == "Y" then Vector3.new(0, sign, 0) else Vector3.new(0, 0, sign)
+	local displacement
 	if mode == "Move" then
-		local key = "HitboxOffset" .. axis
-		draft[key] += sign * distance
+		displacement = distance
 	elseif mode == "Resize" then
 		local key = if axis == "X" then "HitboxWidth" elseif axis == "Y" then "HitboxHeight" else "Range"
-		draft[key] = math.max(0.05, baseline[key] + 2 * distance)
-		-- Resize symmetrically around the mouse-down center, including depth changes.
-		if axis == "Z" then draft.HitboxOffsetZ = baseline.HitboxOffsetZ + (draft.Range - baseline.Range) / 2 end
+		draft[key] = math.max(0.05, baseline[key] + distance)
+		displacement = (draft[key] - baseline[key]) / 2
 	else return nil, "Choose Move or Resize." end
+	setCenter(draft, center(baseline) + rotation(baseline):VectorToWorldSpace(normal * displacement))
 	if not validGeometry(draft) then return nil, "Dragged geometry is not finite." end
 	return draft, nil
+end
+function HitboxEditor.rotate(baseline, axis: Enum.Axis, angle: number)
+	if not validGeometry(baseline) or not finite(angle) then return nil, "Rotation must be finite." end
+	local direction = if axis == Enum.Axis.X then Vector3.xAxis elseif axis == Enum.Axis.Y then Vector3.yAxis elseif axis == Enum.Axis.Z then Vector3.zAxis else nil
+	if not direction then return nil, "Unknown rotation axis." end
+	local result = copy(baseline)
+	local x, y, z = (rotation(baseline) * CFrame.fromAxisAngle(direction, angle % (2 * math.pi))):ToOrientation()
+	result.HitboxRotationX = (math.deg(x) + 180) % 360 - 180
+	result.HitboxRotationY = (math.deg(y) + 180) % 360 - 180
+	result.HitboxRotationZ = (math.deg(z) + 180) % 360 - 180
+	return result, nil
 end
 function HitboxEditor.selectRoot(selection)
 	local selectedModel: Model? = nil
@@ -89,10 +113,12 @@ function HitboxEditor.start(plugin, config, onChanged, onStopped)
 	local objects = {}
 	local connections = {}
 	local ended = false
-	local mode = "Move"
+	local mode = "Preview"
 	local baseline = nil
+	local dragAxis = nil
+	local dragMode = nil
 	local session = {}
-	local gui, proxy, box, handles
+	local gui, proxy, box, handles, arcs
 	local function own(item)
 		table.insert(objects, item)
 		item.Archivable = false
@@ -113,19 +139,21 @@ function HitboxEditor.start(plugin, config, onChanged, onStopped)
 	function session.getDraft() return copy(draft) end
 	function session.setMode(value)
 		if ended then return false end
-		if value ~= "Move" and value ~= "Resize" then return false end
-		mode = value; baseline = nil
+		if value ~= "Preview" and value ~= "Move" and value ~= "Resize" and value ~= "Rotate" then return false end
+		mode = value; baseline = nil; dragAxis = nil; dragMode = nil
+		handles.Visible = mode == "Move" or mode == "Resize"
+		arcs.Visible = mode == "Rotate"
 		handles.Style = if mode == "Move" then Enum.HandlesStyle.Movement else Enum.HandlesStyle.Resize
 		return true
 	end
 	local function refresh()
-		local center, size = HitboxEditor.transform(reference.CFrame, draft)
-		for _, component in { center:GetComponents() } do assert(finite(component), "Preview transform cannot be rendered.") end
+		local frame, size = HitboxEditor.transform(reference.CFrame, draft)
+		for _, component in { frame:GetComponents() } do assert(finite(component), "Preview transform cannot be rendered.") end
 		proxy.Size = size
 		assert(proxy.Size == size, "This hitbox size is outside Studio preview limits; edit its config source instead.")
-		proxy.CFrame = center
+		proxy.CFrame = frame
 		box.Size = size
-		box.CFrame = CFrame.new(draft.HitboxOffsetX, draft.HitboxOffsetY, -draft.Range / 2 + draft.HitboxOffsetZ)
+		box.CFrame = CFrame.new(center(draft)) * rotation(draft)
 	end
 	local ok, failure = pcall(function()
 		gui = own(Instance.new("ScreenGui")); gui.Name = "CombatForgeHitboxPreview"; gui.Parent = CoreGui
@@ -135,16 +163,40 @@ function HitboxEditor.start(plugin, config, onChanged, onStopped)
 		box = own(Instance.new("BoxHandleAdornment")); box.Name = "HitboxPreview"
 		box.Adornee = reference; box.Color3 = Color3.fromRGB(80, 210, 255); box.Transparency = 0.65
 		box.AlwaysOnTop = true; box.ZIndex = 1; box.Parent = gui
+		refresh()
 		handles = own(Instance.new("Handles")); handles.Name = "HitboxHandles"
+		handles.Visible = false
 		handles.Adornee = proxy; handles.Color3 = Color3.fromRGB(255, 190, 70)
 		handles.Faces = Faces.new(Enum.NormalId.Right, Enum.NormalId.Left, Enum.NormalId.Top, Enum.NormalId.Bottom, Enum.NormalId.Front, Enum.NormalId.Back)
 		handles.Style = Enum.HandlesStyle.Movement; handles.Parent = gui
-		refresh()
-		listen(handles.MouseButton1Down, function() baseline = copy(draft) end)
-		listen(handles.MouseButton1Up, function() baseline = nil end)
+		arcs = own(Instance.new("ArcHandles")); arcs.Name = "HitboxRotationHandles"; arcs.Visible = false
+		arcs.Axes = Axes.new(Enum.Axis.X, Enum.Axis.Y, Enum.Axis.Z)
+		arcs.Adornee = proxy; arcs.Parent = gui
+		session.setMode("Preview")
+		listen(handles.MouseButton1Down, function(face)
+			if ended or (mode ~= "Move" and mode ~= "Resize") then return end
+			baseline = copy(draft); dragAxis = face; dragMode = mode
+		end)
+		listen(handles.MouseButton1Up, function(face) if dragAxis == face and dragMode == mode then baseline = nil; dragAxis = nil end end)
 		listen(handles.MouseDrag, function(face, distance)
-			if ended or not baseline then return end
+			if ended or not baseline or dragAxis ~= face or dragMode ~= mode or (mode ~= "Move" and mode ~= "Resize") then return end
 			local changed, dragError = HitboxEditor.drag(baseline, mode, face, distance)
+			if not changed then session.destroy(dragError); return end
+			draft = changed
+			local rendered, renderError = pcall(refresh)
+			if not rendered then session.destroy(tostring(renderError)); return end
+			if onChanged then onChanged(copy(draft)) end
+		end)
+		listen(arcs.MouseButton1Down, function(axis)
+			if ended or mode ~= "Rotate" then return end
+			baseline = copy(draft); dragAxis = axis; dragMode = mode
+		end)
+		listen(arcs.MouseButton1Up, function(axis)
+			if dragMode == "Rotate" and dragAxis == axis then baseline = nil; dragAxis = nil end
+		end)
+		listen(arcs.MouseDrag, function(axis, angle)
+			if ended or mode ~= "Rotate" or dragMode ~= mode or not baseline or dragAxis ~= axis then return end
+			local changed, dragError = HitboxEditor.rotate(baseline, axis, angle)
 			if not changed then session.destroy(dragError); return end
 			draft = changed
 			local rendered, renderError = pcall(refresh)
@@ -166,6 +218,6 @@ function HitboxEditor.start(plugin, config, onChanged, onStopped)
 	if not ok then session.destroy(); return nil, "Could not start preview: " .. tostring(failure) end
 	activeSession = session
 	if onChanged then onChanged(copy(draft)) end
-	return session, "Drag the handles. Size and root-local offsets are measured in studs."
+	return session, "Preview active. Choose Move, Resize or Rotate. Save keeps the draft."
 end
 return HitboxEditor

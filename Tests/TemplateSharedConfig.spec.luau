@@ -45,11 +45,12 @@ return function(module, Config, templates, hitboxSource)
    check(target.Parent==storage.CombatForge.Abilities,"AC01 Shared config exact parent")
    local parsed=assert(Config.parse(target.Source))
    local keys=0; for _ in parsed do keys+=1 end
-   check(keys==(if kind=="Melee" then 11 else 10) and parsed.Name==target.Name and parsed.Damage==20 and parsed.Cooldown==.75 and parsed.Range==(if kind=="Melee" then 6 else 80),"AC01 Full supported shared fields")
+   check(keys==(if kind=="Melee" then 14 else 10) and parsed.Name==target.Name and parsed.Damage==20 and parsed.Cooldown==.75 and parsed.Range==(if kind=="Melee" then 6 else 80),"AC01 Full supported shared fields")
    check(parsed.AnimationId=="" and parsed.HitDelay==0,"AC01 Shared optional-animation defaults")
    if kind=="Melee" then
     check(parsed.HitboxWidth==5 and parsed.HitboxHeight==5,"AC01 Shared melee dimensions")
     check(parsed.HitboxOffsetX==0 and parsed.HitboxOffsetY==0 and parsed.HitboxOffsetZ==0,"VISUAL AC04 Newly generated shared offsets default to zero")
+    check(parsed.HitboxRotationX==0 and parsed.HitboxRotationY==0 and parsed.HitboxRotationZ==0,"VISUAL05 AC04 Newly generated shared rotation defaults to identity")
    else check(parsed.ProjectileSpeed==60 and parsed.ProjectileRadius==.5 and parsed.ProjectileLifetime==3,"AC01 Shared projectile defaults") end
    check(latest.Skill.Source==templates[kind].Skill.Source,"AC01 Tool Skill source unchanged by generation/aim selection")
    for _,pair in pairs do check(pair.target~=target and pair.tool~=latest,"AC02 Mixed/repeated pairs stay distinct") end
