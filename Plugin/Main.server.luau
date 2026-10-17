@@ -24,6 +24,15 @@ local openAction = plugin:CreatePluginAction("CombatForge.OpenEditor", "Open Com
 local connections: { RBXScriptConnection } = {}
 local widget: DockWidgetPluginGui? = nil
 local unloaded = false
+local editorUI = nil
+local hitboxActions = {}
+for _, name in { "TogglePreview", "Move", "Resize", "Rotate", "Undo" } do
+ local action = plugin:CreatePluginAction("CombatForge.Hitbox." .. name, if name == "Undo" then "CombatForge Draft Undo" else "CombatForge Hitbox " .. name, "Edit the active CombatForge hitbox draft", "", true)
+ table.insert(hitboxActions, action)
+ table.insert(connections, action.Triggered:Connect(function()
+  if editorUI then editorUI.invoke(name) end
+ end))
+end
 local iconTask: thread? = nil
 
 local function cleanup()
@@ -39,6 +48,9 @@ local function cleanup()
 		connection:Disconnect()
 	end
 	table.clear(connections)
+	if editorUI then editorUI.destroy(); editorUI = nil end
+	for _, action in hitboxActions do action:Destroy() end
+	table.clear(hitboxActions)
 	if widget then
 		widget:Destroy()
 	end
@@ -58,7 +70,7 @@ local success, failure = pcall(function()
 	end
 	widget = createdWidget
 	createdWidget.Title = "CombatForge"
-	UI.mount(createdWidget, AbilityManager, Theme.new(plugin), function()
+	editorUI = UI.mount(createdWidget, AbilityManager, Theme.new(plugin), function()
 		return RuntimeInstaller.install(script.HitboxTemplate)
 	end, function()
 		return ExampleInstaller.install(script.HitboxTemplate, script.ExampleConfigTemplate, script.ExampleToolTemplate)
@@ -69,8 +81,8 @@ local success, failure = pcall(function()
 		return TemplateInstaller.install(script.HitboxTemplate, template, kind, aimMode)
 	end, {
 		isSupported = HitboxEditor.isSupported,
-		start = function(config, onChanged, onStopped)
-			return HitboxEditor.start(plugin, config, onChanged, onStopped)
+		start = function(config, onChanged, onStopped, onStateChanged)
+			return HitboxEditor.start(plugin, config, onChanged, onStopped, onStateChanged)
 		end,
 	})
 

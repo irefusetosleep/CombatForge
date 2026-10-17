@@ -20,6 +20,8 @@ return function(loadMain)
   local jobs={}
   local icon,writes,mounts,preloads,cancels=nil,0,0,0,0
   local toolbarDestroyed,actionDestroyed,widgetDestroyed=false,false,false
+  local draftActions={}
+  local disposedUI=0
   local widget={Enabled=false,Destroy=function() widgetDestroyed=true end,GetPropertyChangedSignal=function() return changed end}
   local button=setmetatable({Click=click,SetActive=function() end},{
    __index=function(_,key) if key=="Icon" then return icon end end,
@@ -37,8 +39,15 @@ return function(loadMain)
     Destroy=function() toolbarDestroyed=true end,
    } end,
    CreatePluginAction=function(_,id,_,_,initial,allowBinding)
-    check(id=="CombatForge.OpenEditor" and allowBinding and initial==fallback,"Shortcut created with built-in fallback")
-    return {Triggered=trigger,Destroy=function() actionDestroyed=true end}
+    if id=="CombatForge.OpenEditor" then
+     check(allowBinding and initial==fallback,"Shortcut created with built-in fallback")
+     return {Triggered=trigger,Destroy=function() actionDestroyed=true end}
+    end
+    check(id:match("^CombatForge%.Hitbox%.") and allowBinding and initial=="" and not draftActions[id],"Five bindable draft actions need no branded icon")
+    local item={Triggered=signal(),destroyed=false}
+    function item:Destroy() self.destroyed=true end
+    draftActions[id]=item
+    return item
    end,
    CreateDockWidgetPluginGuiAsync=function() return widget end,
   }
@@ -53,12 +62,14 @@ return function(loadMain)
    local job={callback=callback,cancelled=false}; table.insert(jobs,job); return job
   end
   loadMain(plugin,{
-   UI={mount=function() mounts+=1 end},Theme={new=function() return {} end},AbilityManager={},
+   UI={mount=function() mounts+=1; return {invoke=function() end,destroy=function() disposedUI+=1 end} end},Theme={new=function() return {} end},AbilityManager={},
    RuntimeInstaller={},ExampleInstaller={},TemplateInstaller={},DummySpawner={},HitboxEditor={isSupported=function() return false end,start=function() return nil end},
   },{
    game={GetService=function(_,name) assert(name=="ContentProvider","Unexpected startup service"); return provider end},
    task={defer=enqueue,spawn=enqueue,cancel=function(job) cancels+=1; job.cancelled=true end},
   })
+  local draftCount=0; for _ in draftActions do draftCount+=1 end
+  check(draftCount==5,"Exactly five draft actions coexist with branded open action")
   check(mounts==1 and preloads==0 and icon==fallback,"Startup completes before asynchronous preload result")
   click.Fire(); check(widget.Enabled,"Toolbar works before preload result")
   click.Fire(); trigger.Fire(); check(widget.Enabled and mounts==1,"Shortcut opens the same editor before preload")
@@ -84,6 +95,8 @@ return function(loadMain)
    unload.Fire()
    check(toolbarDestroyed and actionDestroyed and widgetDestroyed,"Normal unload cleanup retained")
   end
+  check(disposedUI==1,"Page controller disposed with branded plugin")
+  for _,item in draftActions do check(item.destroyed,"Owned draft action cleaned up in each branding scenario") end
  end
  return tostring(count).." logo startup assertions passed (injected ContentProvider and deferred tasks)"
 end

@@ -1,32 +1,31 @@
 # Current coordination state
 
-Task VISUAL-HITBOX-05: automatic preview, one-sided resize, rotation, no initial handles.
-Specification: coordination/specs/VISUAL-HITBOX-05.md, finalized by Astra Medium Planner
-before the credit interruption. No blocking questions. Clean base8f25b8a.
+Task VISUAL-HITBOX-06: uniform/axis scale, preview and mode toggles, three-decimal
+numeric display, shorter lifecycle message, keyboard actions and draft Undo.
+Planner Astra Medium inspecting/writing spec. Coder/Tester/Reviewer follow in stages.
+Coordinator owns integration, actual Studio checks, installation and commit.
 
-Resumed after interruption. Native handles were no longer live, so staged Coder and
-Tester roles recreated from saved workflow; Reviewer follows after executed evidence.
-Coder owns HitboxEditor/UI/AbilityConfig/AbilityManager/TemplateInstaller/MeleeSkill
-and TemplateSkills docs. Tester owns Tests only. Coordinator owns integration,
-STATUS/PROJECT, Studio checks, local installation and commits.
+User clarified undo: keep Save/Cancel drafts; add Undo button with separately assigned
+shortcut. Native Ctrl+Z remains saved-world undo, not intercepted. Actual guarded
+CoreGui-only history probe committed no undoable waypoint (top remained existing
+CombatForge.SaveHitbox); no Undo invoked, GUI removed. No world changes performed.
 
-Acceptance: initial Preview box auto-starts for selected dummy with all handles hidden;
-invalid selection shows retry; resize keeps opposite face fixed even after rotation;
-rotation uses complete optional finite degree XYZ triple and exact matching runtime;
-Save preserves unrelated fields/conflict/history protections; all lifecycle cleanup
-continues. No automatic saved-Tool migration or persistent preview objects.
+Preserve per-session drafts when preview is toggled off, current safe Save/history,
+source conflicts, offset/rotation compatibility, no persistent preview geometry.
+Shortcut actions should be assignable through Studio Customize Shortcuts; do not
+claim programmatic default chords unsupported by PluginAction API. Numeric formatting
+must not silently reduce stored precision of untouched values.
 
-Prior delivery:1075 assertions passed for VISUAL-HITBOX-04; native pointer/Undo remained
-not run. Current task checks must be rerun for revised behavior. Workers cannot mutate
-Studio/install/commit. Re-list Studio before coordinator checks. See PROJECT.md limits.
+Base aee65c4 passed1441 checks with native pointer/Undo manually not run. Current task
+needs independent tests and final build/package/review before local installation.
+Final Planner spec sevenAC,noOpenquestions; user-selecteddraftUndo replacesCtrlZ. Coder owns HitboxEditor/UI/Main and TemplateSkills docs (Manager onlyifprecisionneeded); Tester ownsTests. Preview controller retainsdraft/history independentlyofvisibility; native5PluginActions assigned byuserCustomizeShortcuts. Uniform oppositefacecenter anchor; rawprecisionpreserved beneath3decimaldisplay.
 
-Completed VISUAL-HITBOX-05: all six ACs implemented. Final Studio harness1385
-assertions plus56 logo startup assertions=1441 passed. Actual native Handles and
-ArcHandles factory/property checks verified initial hidden Preview, exclusive
-Rotate/Resize controls and return-to-Preview hiding; isolated WorldModel removed.
-Build/package/default diff check passed. Reviewer: Approved based on available
-evidence. Native pointer/ring usability, Undo/Redo and actual Play comparison not run.
-Installed via Install-Plugin.ps1 with backup and matching hash. Existing copied
-Tools remain untouched; fresh generation/manual port needed for rotation in Play.
-Test expectations updated for the new interaction, nine geometry fields and14-field
-melee defaults. No permanent Studio content created by verification.
+Completed VISUAL-HITBOX-06. AC01-07 implemented and covered by isolated tests.
+Final1830 fullharness assertions plus116LogoStartup=1946 passed inStudio. Latest
+focusedUI42assertions retested improvedbusyguard. Native engine controller factory,
+Resize/Uniform selection, off/on exactdraftretention and cleanup passed with isolated
+WorldModel removed. Build/package/defaultdiffcheck passed. Reviewer: Approved based
+on available evidence. Native shortcutdelivery/textfocus, pointerdrag and saved
+Undo/Redo not run. Installed via Install-Plugin.ps1 with backup/hash verification.
+User binds five actions via Customize Shortcuts; defaults not silently installed.
+User-approved dedicated draft Undo preserves Save/Cancel; Studio Ctrl+Z untouched.

@@ -1,85 +1,112 @@
--- Real UI callbacks with an injected preview capability; native handles separate.
-return function(UI,actions,Config)
+-- Actual UI callbacks; retained draft controller and input state injected.
+return function(UI,actions,Config,guards)
  local count=0
  local function check(value,message) assert(value,message); count+=1 end
+ local black=Color3.new(0,0,0)
  local host=Instance.new("ScreenGui"); host.Enabled=true
  local target=Instance.new("ModuleScript"); target.Name="MenuMelee"
- local data={Name=target.Name,Damage=20,Cooldown=.75,Range=6,AnimationId="",HitDelay=0,HitboxWidth=5,HitboxHeight=5}
+ local data={Name=target.Name,Damage=20.123456789,Cooldown=.750123456,Range=6.987654321,AnimationId="",HitDelay=0,HitboxWidth=5,HitboxHeight=5}
  local reads,saves,starts,destroys=0,0,0,0
  local saveMode="fail"
- local lastSnapshot,lastSaved,lastMode
- local draft={HitboxWidth=9,HitboxHeight=7,Range=12,HitboxOffsetX=2,HitboxOffsetY=-1,HitboxOffsetZ=3,HitboxRotationX=31,HitboxRotationY=-47,HitboxRotationZ=19}
- local alive=false
+ local lastSnapshot,lastSaved,lastInputs
+ local controller,changed,stateChanged,stopped
+ local draft={HitboxWidth=9.123456789,HitboxHeight=7,Range=12.987654321,HitboxOffsetX=-.00001,HitboxOffsetY=-1.234567,HitboxOffsetZ=3,HitboxRotationX=31.456789,HitboxRotationY=-47,HitboxRotationZ=19}
+ local state={visible=true,mode="Preview",scaleMode="Axis",canUndo=false}
+ local function notify() if changed then changed(table.clone(draft)) end; if stateChanged then stateChanged(table.clone(state)) end end
  local manager={list=function() return {target},nil end,read=function()
   reads+=1; return {module=target,name=target.Name,source=Config.serialize(data),config=table.clone(data)},nil
- end,saveGeometry=function(snapshot,geometry)
+ end,update=function(_,inputs) lastInputs=inputs; return false,"Injected ordinary save error" end,
+ saveGeometry=function(snapshot,geometry)
   saves+=1; lastSnapshot=snapshot; lastSaved=geometry
+  if guards and guards.duringSave then guards.duringSave() end
   if saveMode=="throw" then error("Injected save exception") end
   if saveMode=="fail" then return false,"Skill changed; reopen." end
   for key,value in geometry do data[key]=value end
   return true,"Saved visual geometry."
  end}
- local function destroy()
-  if alive then alive=false; destroys+=1 end
- end
- local startMode="success"
- local capability={isSupported=Config.isMelee,start=function(config,onChanged)
+ local selectionValid=true
+ local capability={isSupported=Config.isMelee,start=function(config,onChanged,onStopped,onStateChanged)
   starts+=1
-  if startMode=="failure" then return nil,"Select one valid dummy." end
-  check(config.Name==data.Name,"AC01 Preview receives selected config")
-  alive=true
-  onChanged(table.clone(draft))
-  return {getDraft=function() return table.clone(draft) end,setMode=function(mode) lastMode=mode end,destroy=destroy},"Draft preview ready."
+  check(config.Name==data.Name,"AC01 Controller receives selected config")
+  changed=onChanged; stateChanged=onStateChanged; stopped=onStopped
+  state={visible=selectionValid,mode="Preview",scaleMode="Axis",canUndo=false}
+  local ended=false
+  controller={getDraft=function() return table.clone(draft) end,getState=function() return table.clone(state) end,
+   setPreviewVisible=function(value)
+    if ended then return false end
+    if value and not selectionValid then return false,"Select one valid dummy." end
+    state.visible=value; state.mode="Preview"; notify()
+    if not value then onStopped("Preview Ended") end
+    return true
+   end,
+   setMode=function(mode) state.mode=mode; notify(); return true end,
+   setScaleMode=function(mode) state.scaleMode=mode; notify(); return true end,
+   undo=function() if not state.canUndo then return false end; state.canUndo=false; draft.HitboxWidth=8.123456789; notify(); return true end,
+   destroy=function() if not ended then ended=true; destroys+=1; state.visible=false end end}
+  notify()
+  return controller,if selectionValid then "Draft preview ready." else "Select one valid dummy."
  end}
+ local mounted
  local ok,failure=pcall(function()
-  UI.mount(host,manager,nil,nil,nil,nil,nil,capability)
+  mounted=UI.mount(host,manager,nil,nil,nil,nil,nil,capability)
   local root=host.CombatForgeRoot
+  check(type(mounted)=="table" and type(mounted.invoke)=="function","AC05 UI exposes shared shortcut dispatcher")
+  check(not mounted.invoke("Move"),"AC05 Shortcut inert outside hitbox page")
   actions.UpdateSkills(); actions.Skill1()
-  check(root.EditHitbox.Text=="Edit Hitbox","AC01 Eligible config exposes visual entry")
+  check(root.DamageInput.Text=="20.123" and root.CooldownInput.Text=="0.750" and root.RangeInput.Text=="6.988","AC04 Common numeric controls show exactly three decimals")
+  root.NameInput.Text="RenamedOnly"; task.wait(); actions.SaveChanges()
+  check(tonumber(lastInputs.Damage)==data.Damage and tonumber(lastInputs.Cooldown)==data.Cooldown and tonumber(lastInputs.Range)==data.Range,"AC04 Unchanged rounded numeric fields retain exact original precision")
+  root.NameInput.Text=data.Name; task.wait()
   actions.EditHitbox()
-  check(root.Heading.Text=="Edit Hitbox: MenuMelee" and root.HitboxInstructions.Text:find("selected dummy",1,true),"AC01 Selected ability/instructions shown")
-  check(starts==1 and alive,"AC01 Entry automatically starts exactly one preview")
-  check(root.HitboxReadout.Text:find("31",1,true) and root.HitboxReadout.Text:find("-47",1,true),"AC03 Rotation degree readout shown")
-  actions.HitboxRotate(); check(lastMode=="Rotate","AC03 Rotate dispatch")
-  actions.HitboxPreview(); check(lastMode=="Preview","AC01 Preview dispatch")
-  actions.CancelHitbox(); check(not alive and destroys==1,"AC05 Initial auto preview can cancel without saving")
-  startMode="failure"; actions.EditHitbox()
-  check(starts==2 and not alive,"AC01 Invalid initial selection retains retry without session")
-  actions.SaveHitbox(); check(saves==0,"AC01 Save cannot run without preview")
-  actions.HitboxMove(); check(lastMode=="Preview","AC01 Mode guarded without preview")
-  actions.StartHitboxPreview()
-  check(root.HitboxStatus.Text=="Select one valid dummy." and not alive,"AC01 Invalid selection guidance")
-  startMode="success"; actions.StartHitboxPreview()
-  check(alive and root.HitboxReadout.Text:find("9 x 7 x 12",1,true) and root.HitboxReadout.Text:find("X 2",1,true),"AC02 Current draft dimensions/local offsets displayed")
-  actions.HitboxResize(); check(lastMode=="Resize","AC02 Resize dispatch")
-  actions.HitboxMove(); check(lastMode=="Move","AC02 Move dispatch")
-  actions.SaveHitbox()
-  check(saves==1 and alive and root.HitboxStatus.Text=="Skill changed; reopen.","AC03 Save failure preserves draft with error")
-  check(lastSnapshot.module==target and lastSaved.HitboxWidth==9 and lastSaved.HitboxOffsetZ==3 and lastSaved.HitboxRotationY==-47,"AC03 Save uses exact snapshot and draft")
-  saveMode="throw"; actions.SaveHitbox()
-  check(alive and root.HitboxStatus.Text:find("Injected save exception",1,true),"AC03 Thrown save failure remains visible")
-  local beforeReads=reads
+  check(starts==1 and state.visible and state.mode=="Preview","AC01 Entry starts one visible preview without tools")
+  check(root.ToggleHitboxPreview.Text=="Toggle Preview" and root:FindFirstChild("StartHitboxPreview")==nil and root:FindFirstChild("HitboxPreview")==nil,"AC01/02 Exact toggle label; obsolete preview buttons removed")
+  check(root.ToggleHitboxPreview.BackgroundColor3.G>root.ToggleHitboxPreview.BackgroundColor3.R and root.ToggleHitboxPreview.BackgroundColor3.G>root.ToggleHitboxPreview.BackgroundColor3.B and root.ToggleHitboxPreview.BackgroundColor3~=black and root.HitboxMove.BackgroundColor3==black and root.HitboxResize.BackgroundColor3==black and root.HitboxRotate.BackgroundColor3==black,"AC01/02 Preview green and inactive tools black")
+  check(root.HitboxReadout.Text:find("9.123 x 7.000 x 12.988",1,true) and root.HitboxReadout.Text:find("X 0.000",1,true) and not root.HitboxReadout.Text:find("-0.000",1,true) and root.HitboxReadout.Text:find("31.457",1,true),"AC04 Size/offset/rotation readouts three decimals with normalized negative zero")
+  check(root.HitboxScaleAxis.BackgroundColor3~=black and root.HitboxScaleUniform.BackgroundColor3==black,"AC03 Axis visibly selected initially")
+  check(not root.UndoHitbox.Active,"AC06 Empty history visibly unavailable")
+  check(root.HitboxShortcuts.Text:find("Customize Shortcuts",1,true) and root.HitboxShortcuts.Text:find("Ctrl+Alt+Z",1,true) and root.HitboxShortcuts.Text:find("Ctrl+Z",1,true),"AC05 Shortcut help distinguishes recommended draft binding and Studio Undo")
+  actions.HitboxMove(); check(state.mode=="Move" and root.HitboxMove.BackgroundColor3~=black,"AC02 Move on green")
+  actions.HitboxMove(); check(state.mode=="Preview" and root.HitboxMove.BackgroundColor3==black,"AC02 Active Move toggles off")
+  mounted.invoke("Resize"); check(state.mode=="Resize" and root.HitboxResize.BackgroundColor3~=black,"AC05 Shortcut uses same Resize transition")
+  actions.HitboxRotate(); check(state.mode=="Rotate" and root.HitboxResize.BackgroundColor3==black,"AC02 Selecting Rotate disables Resize")
+  actions.HitboxScaleUniform(); check(state.scaleMode=="Uniform" and root.HitboxScaleUniform.BackgroundColor3~=black and root.HitboxScaleAxis.BackgroundColor3==black,"AC03 Uniform selected visibly")
+  actions.HitboxScaleAxis(); check(state.scaleMode=="Axis","AC03 Axis selection dispatch")
+  state.canUndo=true; notify()
+  actions.ToggleHitboxPreview()
+  check(not state.visible and state.mode=="Preview" and root.ToggleHitboxPreview.BackgroundColor3==black and root.HitboxStatus.Text=="Preview Ended" and starts==1 and destroys==0,"AC01/04 Off retains controller and sets exact status")
+  actions.UndoHitbox(); check(not state.canUndo and root.HitboxReadout.Text:find("8.123",1,true),"AC06 Undo available while preview off refreshes readout")
+  actions.UndoHitbox(); check(not state.canUndo,"AC06 Empty Undo safe no-op")
+  mounted.invoke("TogglePreview"); check(state.visible and state.mode=="Preview" and starts==1,"AC01/05 Shortcut resumes same draft controller")
+  state.canUndo=true; notify(); mounted.invoke("Undo"); check(not state.canUndo,"AC05/06 Draft Undo shortcut uses shared action")
+  if guards then
+   guards.focused=true; mounted.invoke("Move"); check(state.mode=="Preview","AC05 Focused textbox guards shortcuts"); guards.focused=false
+   guards.running=true; mounted.invoke("Move"); check(state.mode=="Preview","AC05 Play guards shortcuts"); guards.running=false
+   guards.duringSave=function() check(not mounted.invoke("TogglePreview") and not state.visible,"AC05 Busy save guards shortcut dispatch") end
+  end
+  actions.ToggleHitboxPreview(); actions.SaveHitbox()
+  check(saves==1 and lastSnapshot.module==target and lastSaved.Range==12.987654321 and lastSaved.HitboxOffsetX==-.00001,"AC01/04 Save while off uses exact unrounded draft")
+  check(root.HitboxStatus.Text=="Skill changed; reopen.","AC07 Save conflict remains actionable")
+  saveMode="throw"; actions.SaveHitbox(); check(root.HitboxStatus.Text:find("Injected save exception",1,true),"AC07 Specific save exception retained")
+  if guards then guards.duringSave=nil end
   saveMode="success"; actions.SaveHitbox()
-  check(not alive and destroys==2 and reads==beforeReads+1,"AC03 Successful Save closes session and reloads snapshot")
-  check(root.RangeInput.Text=="12" and root.Status.Text=="Saved visual geometry.","AC03 Returns to refreshed common editor with success")
-  actions.EditHitbox(); local beforeSaves=saves
+  check(destroys==1 and root.RangeInput.Text=="12.988" and root.Status.Text=="Saved visual geometry.","AC04/06 Successful Save closes controller and formats common depth")
+  check(not mounted.invoke("Move"),"AC05 Dispatcher inert after returning common editor")
+  selectionValid=false; actions.EditHitbox()
+  check(starts==2 and not state.visible and root.ToggleHitboxPreview.BackgroundColor3==black,"AC01 Invalid selection off and retryable")
+  actions.ToggleHitboxPreview(); check(not state.visible,"AC01 Failed retry preserves off state")
+  selectionValid=true; actions.ToggleHitboxPreview(); check(state.visible and starts==2,"AC01 Valid retry uses retained controller")
+  host.Enabled=false; task.wait()
+  check(not state.visible and not mounted.invoke("TogglePreview"),"AC05/07 Widget hide hides render and gates shortcuts")
+  host.Enabled=true; check(not state.visible,"AC07 Re-enable does not restart preview")
   actions.CancelHitbox()
-  check(not alive and destroys==3 and saves==beforeSaves and root.EditHitbox~=nil,"AC05 Cancel ends preview without saving")
-  actions.EditHitbox(); host.Enabled=false; task.wait()
-  check(not alive and destroys==4,"AC05 Widget closure ends preview")
-  host.Enabled=true; actions.StartHitboxPreview()
-  local beforeDestroy=destroys
-  root:Destroy()
-  task.wait() -- Studio may dispatch Destroying with deferred signal behavior.
-  check(not alive and destroys==beforeDestroy+1,"AC05 Root/UI destruction ends preview")
-  -- A fresh mounted view refuses unsupported projectile/mixed settings.
-  data.ProjectileSpeed=60
-  UI.mount(host,manager,nil,nil,nil,nil,nil,capability)
-  root=host.CombatForgeRoot
-  actions.UpdateSkills(); actions.Skill1()
-  check(root:FindFirstChild("EditHitbox")==nil and root.HitboxHelp.Text:find("not supported",1,true),"AC01 Unsupported config receives guidance without entry")
+  actions.EditHitbox(); local beforeSaves=saves
+  actions.CancelHitbox(); check(destroys==3 and saves==beforeSaves,"AC06/07 Cancel disposes draft without save")
+  actions.EditHitbox(); local before=destroys
+  root:Destroy(); task.wait()
+  check(destroys==before+1 and not mounted.invoke("Move"),"AC05/07 Root destruction disconnects page dispatcher")
  end)
- destroy(); host:Destroy(); target:Destroy()
+ if mounted and mounted.destroy then mounted.destroy() end
+ host:Destroy(); target:Destroy()
  assert(ok,failure)
- return tostring(count).." visual hitbox UI assertions passed (actual UI callbacks; injected preview capability)"
+ return tostring(count).." visual hitbox UI assertions passed (actual callbacks; injected retained controller/input state)"
 end

@@ -75,7 +75,7 @@ return function(sources)
    end))
   end
   local colourPicker = module("Plugin/ColourPicker.luau")
-  local function uiLoader()
+  local function uiLoader(services)
    local actions = {}
    local source = assert(sources["Plugin/UI.luau"])
    local marker = "item.Activated:Connect(function() if not busy then action() end end)"
@@ -84,7 +84,7 @@ return function(sources)
    end)
    assert(replacements == 1, "UI callback instrumentation must match once")
    instrumented = instrumented:gsub("segment%.Activated:Connect%(function%(%)", "captureSegment(segment, function()")
-   local ui = module("Plugin/UI.luau", nil, {AbilityConfig=parser, AbilityManager={}, Theme=theme, ColourPicker=colourPicker}, {
+   local ui = module("Plugin/UI.luau", services, {AbilityConfig=parser, AbilityManager={}, Theme=theme, ColourPicker=colourPicker}, {
     actions=actions, captureSegment=function(segment, callback)
      actions[segment.Name]=callback
      return segment.Activated:Connect(callback)
@@ -97,8 +97,9 @@ return function(sources)
    table.insert(results, compile(path)(ui, actions))
   end
   if sources["Tests/VisualHitboxMenu.spec.luau"] then
-   local ui,actions=uiLoader()
-   table.insert(results,compile("Tests/VisualHitboxMenu.spec.luau")(ui,actions,parser))
+   local guards={focused=false,running=false}
+   local ui,actions=uiLoader({UserInputService={GetFocusedTextBox=function() return if guards.focused then {} else nil end},RunService={IsRunning=function() return guards.running end}})
+   table.insert(results,compile("Tests/VisualHitboxMenu.spec.luau")(ui,actions,parser,guards))
   end
   table.insert(results, compile("Tests/Startup.spec.luau")(function(plugin, dependencies)
    return module("Plugin/Main.server.luau", nil, dependencies, {plugin=plugin,task={defer=function(callback) return {callback=callback} end,cancel=function() end}})

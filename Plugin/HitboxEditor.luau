@@ -47,7 +47,7 @@ function HitboxEditor.transform(rootCFrame: CFrame, draft): (CFrame, Vector3)
 	return rootCFrame * CFrame.new(center(draft)) * rotation(draft),
 		Vector3.new(draft.HitboxWidth, draft.HitboxHeight, draft.Range)
 end
-function HitboxEditor.drag(baseline, mode: string, face: Enum.NormalId, distance: number)
+function HitboxEditor.drag(baseline, mode: string, face: Enum.NormalId, distance: number, scaleMode: string?)
 	if not validGeometry(baseline) or not finite(distance) then return nil, "Drag geometry must be finite and positive." end
 	local axis, sign
 	if face == Enum.NormalId.Right then axis = "X"; sign = 1
@@ -58,13 +58,22 @@ function HitboxEditor.drag(baseline, mode: string, face: Enum.NormalId, distance
 	elseif face == Enum.NormalId.Front then axis = "Z"; sign = -1
 	else return nil, "Unknown hitbox face." end
 	local draft = copy(baseline)
+	if distance == 0 and (mode == "Move" or mode == "Resize") then return draft, nil end
 	local normal = if axis == "X" then Vector3.new(sign, 0, 0) elseif axis == "Y" then Vector3.new(0, sign, 0) else Vector3.new(0, 0, sign)
 	local displacement
 	if mode == "Move" then
 		displacement = distance
 	elseif mode == "Resize" then
 		local key = if axis == "X" then "HitboxWidth" elseif axis == "Y" then "HitboxHeight" else "Range"
-		draft[key] = math.max(0.05, baseline[key] + distance)
+		if scaleMode == "Uniform" then
+			local ratio = (baseline[key] + distance) / baseline[key]
+			local minimumRatio = math.max(math.min(0.05, baseline.HitboxWidth) / baseline.HitboxWidth, math.min(0.05, baseline.HitboxHeight) / baseline.HitboxHeight, math.min(0.05, baseline.Range) / baseline.Range)
+			ratio = math.max(minimumRatio, ratio)
+			draft.HitboxWidth = baseline.HitboxWidth * ratio; draft.HitboxHeight = baseline.HitboxHeight * ratio; draft.Range = baseline.Range * ratio
+		elseif scaleMode == nil or scaleMode == "Axis" then
+			draft[key] = math.max(0.05, baseline[key] + distance)
+		else return nil, "Choose Axis or Uniform scaling." end
+		if draft.HitboxWidth == baseline.HitboxWidth and draft.HitboxHeight == baseline.HitboxHeight and draft.Range == baseline.Range then return draft, nil end
 		displacement = (draft[key] - baseline[key]) / 2
 	else return nil, "Choose Move or Resize." end
 	setCenter(draft, center(baseline) + rotation(baseline):VectorToWorldSpace(normal * displacement))
@@ -76,6 +85,7 @@ function HitboxEditor.rotate(baseline, axis: Enum.Axis, angle: number)
 	local direction = if axis == Enum.Axis.X then Vector3.xAxis elseif axis == Enum.Axis.Y then Vector3.yAxis elseif axis == Enum.Axis.Z then Vector3.zAxis else nil
 	if not direction then return nil, "Unknown rotation axis." end
 	local result = copy(baseline)
+	if angle % (2 * math.pi) == 0 then return result, nil end
 	local x, y, z = (rotation(baseline) * CFrame.fromAxisAngle(direction, angle % (2 * math.pi))):ToOrientation()
 	result.HitboxRotationX = (math.deg(x) + 180) % 360 - 180
 	result.HitboxRotationY = (math.deg(y) + 180) % 360 - 180
@@ -96,128 +106,172 @@ function HitboxEditor.selectRoot(selection)
 		if selectedModel and selectedModel ~= candidate then return nil, "Select only one dummy Model." end
 		selectedModel = candidate
 	end
-	if not selectedModel then return nil, "Select a dummy Model or one of its parts, then Start Preview." end
+	if not selectedModel then return nil, "Select a dummy Model or one of its parts, then Toggle Preview." end
 	local root = selectedModel:FindFirstChild("HumanoidRootPart")
 	if not root or not root:IsA("BasePart") then return nil, "The selected dummy needs a BasePart HumanoidRootPart." end
 	return root, nil
 end
-function HitboxEditor.start(plugin, config, onChanged, onStopped)
+function HitboxEditor.start(plugin, config, onChanged, onStopped, onStateChanged)
 	if activeSession then activeSession.destroy() end
-	if RunService:IsRunning() then return nil, "Stop the playtest before previewing a hitbox." end
 	local draft, problem = HitboxEditor.newDraft(config)
 	if not draft then return nil, problem end
-	local reference, selectionError = HitboxEditor.selectRoot(Selection:Get())
-	if not reference then return nil, selectionError end
-	local model = reference.Parent
-	local humanoid = model:FindFirstChildOfClass("Humanoid")
-	local objects = {}
-	local connections = {}
-	local ended = false
-	local mode = "Preview"
-	local baseline = nil
-	local dragAxis = nil
-	local dragMode = nil
 	local session = {}
+	local reference, model, humanoid
+	local objects, connections, lifetime = {}, {}, {}
+	local ended, visible = false, false
+	local mode, scaleMode = "Preview", "Axis"
+	local baseline, dragAxis, dragMode, dragScale
+	local history = {}
 	local gui, proxy, box, handles, arcs
-	local function own(item)
-		table.insert(objects, item)
-		item.Archivable = false
-		return item
+	local function equal(a, b)
+		for _, key in geometryKeys do if a[key] ~= b[key] then return false end end
+		return true
 	end
-	local function listen(signal, callback) table.insert(connections, signal:Connect(callback)) end
-	function session.destroy(message)
-		if ended then return end
-		ended = true
+	local function notify()
+		if onChanged then onChanged(copy(draft)) end
+		if onStateChanged then onStateChanged(session.getState()) end
+	end
+	local function finishGesture()
+		if baseline and not equal(baseline, draft) then table.insert(history, baseline) end
+		baseline = nil; dragAxis = nil; dragMode = nil; dragScale = nil
+	end
+	function session.getDraft() return copy(draft) end
+	function session.getState()
+		return { visible = visible, mode = mode, scaleMode = scaleMode, canUndo = baseline ~= nil and not equal(baseline, draft) or #history > 0 }
+	end
+	local function stopRendering(message)
+		finishGesture()
+		visible = false; mode = "Preview"
 		for _, connection in connections do connection:Disconnect() end
 		table.clear(connections)
 		for index = #objects, 1, -1 do objects[index]:Destroy() end
 		table.clear(objects)
-		if activeSession == session then activeSession = nil end
+		gui = nil; proxy = nil; box = nil; handles = nil; arcs = nil
 		pcall(function() plugin:Deactivate() end)
 		if message and onStopped then onStopped(message) end
+		notify()
 	end
-	function session.getDraft() return copy(draft) end
-	function session.setMode(value)
-		if ended then return false end
-		if value ~= "Preview" and value ~= "Move" and value ~= "Resize" and value ~= "Rotate" then return false end
-		mode = value; baseline = nil; dragAxis = nil; dragMode = nil
-		handles.Visible = mode == "Move" or mode == "Resize"
-		arcs.Visible = mode == "Rotate"
-		handles.Style = if mode == "Move" then Enum.HandlesStyle.Movement else Enum.HandlesStyle.Resize
-		return true
+	function session.destroy()
+		if ended then return end
+		stopRendering()
+		ended = true
+		for _, connection in lifetime do connection:Disconnect() end
+		table.clear(lifetime); table.clear(history)
+		if activeSession == session then activeSession = nil end
 	end
 	local function refresh()
 		local frame, size = HitboxEditor.transform(reference.CFrame, draft)
 		for _, component in { frame:GetComponents() } do assert(finite(component), "Preview transform cannot be rendered.") end
 		proxy.Size = size
 		assert(proxy.Size == size, "This hitbox size is outside Studio preview limits; edit its config source instead.")
-		proxy.CFrame = frame
-		box.Size = size
+		proxy.CFrame = frame; box.Size = size
 		box.CFrame = CFrame.new(center(draft)) * rotation(draft)
 	end
-	local ok, failure = pcall(function()
-		gui = own(Instance.new("ScreenGui")); gui.Name = "CombatForgeHitboxPreview"; gui.Parent = CoreGui
-		proxy = own(Instance.new("Part")); proxy.Name = "CombatForgeHitboxHandleProxy"
-		proxy.Anchored = true; proxy.CanCollide = false; proxy.CanTouch = false; proxy.CanQuery = false; proxy.Transparency = 1
-		-- The handle proxy deliberately remains unparented; it is never serialized with the place.
-		box = own(Instance.new("BoxHandleAdornment")); box.Name = "HitboxPreview"
-		box.Adornee = reference; box.Color3 = Color3.fromRGB(80, 210, 255); box.Transparency = 0.65
-		box.AlwaysOnTop = true; box.ZIndex = 1; box.Parent = gui
-		refresh()
-		handles = own(Instance.new("Handles")); handles.Name = "HitboxHandles"
-		handles.Visible = false
-		handles.Adornee = proxy; handles.Color3 = Color3.fromRGB(255, 190, 70)
-		handles.Faces = Faces.new(Enum.NormalId.Right, Enum.NormalId.Left, Enum.NormalId.Top, Enum.NormalId.Bottom, Enum.NormalId.Front, Enum.NormalId.Back)
-		handles.Style = Enum.HandlesStyle.Movement; handles.Parent = gui
-		arcs = own(Instance.new("ArcHandles")); arcs.Name = "HitboxRotationHandles"; arcs.Visible = false
-		arcs.Axes = Axes.new(Enum.Axis.X, Enum.Axis.Y, Enum.Axis.Z)
-		arcs.Adornee = proxy; arcs.Parent = gui
-		session.setMode("Preview")
-		listen(handles.MouseButton1Down, function(face)
-			if ended or (mode ~= "Move" and mode ~= "Resize") then return end
-			baseline = copy(draft); dragAxis = face; dragMode = mode
+	local function renderDraft()
+		if not visible then return true end
+		local ok, failure = pcall(refresh)
+		if not ok then stopRendering("Could not render preview: " .. tostring(failure)) end
+		return ok
+	end
+	function session.setMode(value)
+		if ended or not visible then return false end
+		if value ~= "Preview" and value ~= "Move" and value ~= "Resize" and value ~= "Rotate" then return false end
+		finishGesture(); mode = value
+		handles.Visible = mode == "Move" or mode == "Resize"; arcs.Visible = mode == "Rotate"
+		handles.Style = if mode == "Move" then Enum.HandlesStyle.Movement else Enum.HandlesStyle.Resize
+		notify(); return true
+	end
+	function session.setScaleMode(value)
+		if ended or (value ~= "Axis" and value ~= "Uniform") then return false end
+		finishGesture(); scaleMode = value; notify(); return true
+	end
+	function session.undo()
+		if ended then return false end
+		if baseline and not equal(baseline, draft) then
+			draft = copy(baseline); baseline = nil; dragAxis = nil; dragMode = nil; dragScale = nil
+		else
+			baseline = nil; dragAxis = nil; dragMode = nil; dragScale = nil
+			if #history == 0 then return false end
+			draft = table.remove(history)
+		end
+		renderDraft(); notify(); return true
+	end
+	local function own(item)
+		table.insert(objects, item); item.Archivable = false; return item
+	end
+	local function listen(signal, callback) table.insert(connections, signal:Connect(callback)) end
+	local function beginGesture(axis, rotationGesture)
+		if ended or not visible or (rotationGesture and mode ~= "Rotate") or (not rotationGesture and mode ~= "Move" and mode ~= "Resize") then return end
+		finishGesture(); baseline = copy(draft); dragAxis = axis; dragMode = mode; dragScale = scaleMode
+	end
+	local function endGesture(axis, rotationGesture)
+		if not visible or dragAxis ~= axis or dragMode ~= mode or (rotationGesture and mode ~= "Rotate") or (not rotationGesture and mode ~= "Move" and mode ~= "Resize") then return end
+		finishGesture(); notify()
+	end
+	local function drag(axis, amount, rotationGesture)
+		if ended or not visible or not baseline or dragAxis ~= axis or dragMode ~= mode or dragScale ~= scaleMode
+			or (rotationGesture and mode ~= "Rotate") or (not rotationGesture and mode ~= "Move" and mode ~= "Resize") then return end
+		local changed, failure
+		if rotationGesture then changed, failure = HitboxEditor.rotate(baseline, axis, amount)
+		else changed, failure = HitboxEditor.drag(baseline, mode, axis, amount, scaleMode) end
+		if not changed then stopRendering(failure); return end
+		local previous = draft; draft = changed
+		local rendered, renderError = pcall(refresh)
+		if not rendered then
+			draft = previous
+			stopRendering("Could not render preview: " .. tostring(renderError))
+			return
+		end
+		notify()
+	end
+	function session.setPreviewVisible(value)
+		if ended then return false, "The editor is closed." end
+		if not value then stopRendering("Preview Ended"); return true, "Preview Ended" end
+		if visible then return true, "Preview active." end
+		if RunService:IsRunning() then return false, "Stop the playtest before previewing a hitbox." end
+		if not reference then
+			local selectionError
+			reference, selectionError = HitboxEditor.selectRoot(Selection:Get())
+			if not reference then return false, selectionError end
+			model = reference.Parent; humanoid = model:FindFirstChildOfClass("Humanoid")
+		end
+		if not reference:IsDescendantOf(workspace) or reference.Parent ~= model or not humanoid or humanoid.Parent ~= model then
+			return false, "The reference dummy or root was removed. Reopen Edit Hitbox with a valid dummy selected."
+		end
+		local ok, failure = pcall(function()
+			gui = own(Instance.new("ScreenGui")); gui.Name = "CombatForgeHitboxPreview"; gui.Parent = CoreGui
+			proxy = own(Instance.new("Part")); proxy.Name = "CombatForgeHitboxHandleProxy"
+			proxy.Anchored = true; proxy.CanCollide = false; proxy.CanTouch = false; proxy.CanQuery = false; proxy.Transparency = 1
+			box = own(Instance.new("BoxHandleAdornment")); box.Name = "HitboxPreview"; box.Adornee = reference
+			box.Color3 = Color3.fromRGB(80, 210, 255); box.Transparency = 0.65; box.AlwaysOnTop = true; box.ZIndex = 1; box.Parent = gui
+			refresh()
+			handles = own(Instance.new("Handles")); handles.Name = "HitboxHandles"; handles.Visible = false
+			handles.Adornee = proxy; handles.Color3 = Color3.fromRGB(255, 190, 70)
+			handles.Faces = Faces.new(Enum.NormalId.Right, Enum.NormalId.Left, Enum.NormalId.Top, Enum.NormalId.Bottom, Enum.NormalId.Front, Enum.NormalId.Back)
+			handles.Style = Enum.HandlesStyle.Movement; handles.Parent = gui
+			arcs = own(Instance.new("ArcHandles")); arcs.Name = "HitboxRotationHandles"; arcs.Visible = false
+			arcs.Axes = Axes.new(Enum.Axis.X, Enum.Axis.Y, Enum.Axis.Z); arcs.Adornee = proxy; arcs.Parent = gui
+			listen(handles.MouseButton1Down, function(axis) beginGesture(axis, false) end)
+			listen(handles.MouseButton1Up, function(axis) endGesture(axis, false) end)
+			listen(handles.MouseDrag, function(axis, distance) drag(axis, distance, false) end)
+			listen(arcs.MouseButton1Down, function(axis) beginGesture(axis, true) end)
+			listen(arcs.MouseButton1Up, function(axis) endGesture(axis, true) end)
+			listen(arcs.MouseDrag, function(axis, angle) drag(axis, angle, true) end)
+			listen(RunService.RenderStepped, function()
+				if RunService:IsRunning() then stopRendering("Preview Ended"); return end
+				if not reference:IsDescendantOf(workspace) or reference.Parent ~= model or humanoid.Parent ~= model then stopRendering("Preview Ended"); return end
+				renderDraft()
+			end)
+			listen(plugin.Deactivation, function() if visible then stopRendering("Preview Ended") end end)
+			visible = true; mode = "Preview"; plugin:Activate(true)
 		end)
-		listen(handles.MouseButton1Up, function(face) if dragAxis == face and dragMode == mode then baseline = nil; dragAxis = nil end end)
-		listen(handles.MouseDrag, function(face, distance)
-			if ended or not baseline or dragAxis ~= face or dragMode ~= mode or (mode ~= "Move" and mode ~= "Resize") then return end
-			local changed, dragError = HitboxEditor.drag(baseline, mode, face, distance)
-			if not changed then session.destroy(dragError); return end
-			draft = changed
-			local rendered, renderError = pcall(refresh)
-			if not rendered then session.destroy(tostring(renderError)); return end
-			if onChanged then onChanged(copy(draft)) end
-		end)
-		listen(arcs.MouseButton1Down, function(axis)
-			if ended or mode ~= "Rotate" then return end
-			baseline = copy(draft); dragAxis = axis; dragMode = mode
-		end)
-		listen(arcs.MouseButton1Up, function(axis)
-			if dragMode == "Rotate" and dragAxis == axis then baseline = nil; dragAxis = nil end
-		end)
-		listen(arcs.MouseDrag, function(axis, angle)
-			if ended or mode ~= "Rotate" or dragMode ~= mode or not baseline or dragAxis ~= axis then return end
-			local changed, dragError = HitboxEditor.rotate(baseline, axis, angle)
-			if not changed then session.destroy(dragError); return end
-			draft = changed
-			local rendered, renderError = pcall(refresh)
-			if not rendered then session.destroy(tostring(renderError)); return end
-			if onChanged then onChanged(copy(draft)) end
-		end)
-		listen(RunService.RenderStepped, function()
-			if RunService:IsRunning() then session.destroy("Preview ended for Play. Reopen Edit Hitbox in Edit mode."); return end
-			if not reference:IsDescendantOf(workspace) or reference.Parent ~= model or humanoid.Parent ~= model then
-				session.destroy("The reference dummy or root was removed. Select a dummy and start again."); return
-			end
-			local rendered, renderError = pcall(refresh)
-			if not rendered then session.destroy(tostring(renderError)) end
-		end)
-		listen(plugin.Deactivation, function() session.destroy("Preview ended because the active Studio tool changed.") end)
-		listen(plugin.Unloading, function() session.destroy() end)
-		plugin:Activate(true)
-	end)
-	if not ok then session.destroy(); return nil, "Could not start preview: " .. tostring(failure) end
+		if not ok then stopRendering("Could not start preview: " .. tostring(failure)); return false, "Could not start preview: " .. tostring(failure) end
+		notify(); return true, "Preview active. Choose Move, Resize or Rotate."
+	end
+	table.insert(lifetime, plugin.Unloading:Connect(function() session.destroy() end))
 	activeSession = session
-	if onChanged then onChanged(copy(draft)) end
-	return session, "Preview active. Choose Move, Resize or Rotate. Save keeps the draft."
+	local _, message = session.setPreviewVisible(true)
+	notify()
+	return session, message
 end
 return HitboxEditor

@@ -59,82 +59,140 @@ return function(loadEditor)
   local noHumanoid=Instance.new("Model"); noHumanoid.Parent=world
   check(editor.selectRoot({noHumanoid})==nil,"AC01 Model without Humanoid rejected"); noHumanoid:Destroy()
   root.Parent=nil; check(editor.selectRoot({first})==nil,"AC01 Missing root rejected"); root.Parent=first
+  local function same(a,b)
+   for key,value in a do if value~=b[key] then return false end end
+   for key,value in b do if value~=a[key] then return false end end
+   return true
+  end
+  local function gesture(session,mode,axis,deltas)
+   session.setMode(mode)
+   local control=if mode=="Rotate" then arcs else handles
+   control.MouseButton1Down:Fire(axis)
+   for _,delta in deltas do control.MouseDrag:Fire(axis,delta,0) end
+   control.MouseButton1Up:Fire(axis)
+  end
   selection={}
-  check(begin()==nil and #core:GetChildren()==0 and activeConnections==0,"AC01 Invalid selection creates no preview/resources")
-  selection={first}; running=true
-  check(begin()==nil and #core:GetChildren()==0,"AC05 Play mode refuses preview"); running=false
+  local invalid=assert(begin())
+  check(not invalid.getState().visible and #core:GetChildren()==0 ,"AC01 Invalid selection retains draft controller without render resources")
+  check(not invalid.setPreviewVisible(true) and not invalid.getState().visible,"AC01 Repeated failed retry stays safe")
+  selection={first}; check(invalid.setPreviewVisible(true) and invalid.getState().visible,"AC01 Same controller retries valid selection")
+  invalid.destroy()
   local source=table.clone(config)
   local beforeRoot=root.CFrame
   local session=assert(begin())
-  check(#core:GetChildren()==1 and activates==1,"AC02 Preview has one plugin-owned GUI")
+  check(#core:GetChildren()==1,"AC01 Exactly one plugin-owned GUI")
   local gui=core:GetChildren()[1]
   local box=gui:FindFirstChild("HitboxPreview")
   local proxy=handles.Adornee
-  check(box and box:IsA("BoxHandleAdornment") and box.Adornee==root and box.Transparency>0,"AC02 Translucent box references captured dummy root")
-  check(proxy:IsA("Part") and proxy.Parent==nil and not proxy.CanCollide and not proxy.CanTouch and not proxy.CanQuery and proxy.Transparency==1,"AC05 Handle proxy is unparented and cannot affect game physics/query")
-  check(not proxy.Archivable and not gui.Archivable and not box.Archivable,"AC05 Preview objects marked transient")
-  for _,face in {Enum.NormalId.Left,Enum.NormalId.Right,Enum.NormalId.Top,Enum.NormalId.Bottom,Enum.NormalId.Front,Enum.NormalId.Back} do check(handles.Faces[face.Name],"AC02 Visible handles include face "..face.Name) end
-  check(root.CFrame==beforeRoot and #first:GetChildren()==2,"AC05 Opening does not alter dummy")
-  check(geometryBeforeAdornee,"AC01 Valid box geometry initialized before control Adornee assignment")
-  check(hiddenBeforeParent and handles.Visible==false and arcs.Visible==false,"AC01 Both controls hidden before parent/Adornee assignment and default Preview")
+  check(box and box:IsA("BoxHandleAdornment") and box.Adornee==root and box.Transparency>0,"AC01 Box references captured dummy")
+  check(proxy:IsA("Part") and proxy.Parent==nil and not proxy.CanCollide and not proxy.CanTouch and not proxy.CanQuery and proxy.Transparency==1,"AC07 Proxy unparented/inert")
+  check(hiddenBeforeParent and geometryBeforeAdornee and not handles.Visible and not arcs.Visible,"AC01 Controls hidden until initialized")
+  check(session.getState().mode=="Preview" and session.getState().scaleMode=="Axis" and not session.getState().canUndo,"AC02/03/06 Initial tools/history/scale defaults")
+  check(not session.undo(),"AC06 Empty history safe no-op")
+  local initial=session.getDraft()
   handles.MouseButton1Down:Fire(Enum.NormalId.Right); handles.MouseDrag:Fire(Enum.NormalId.Right,8)
-  arcs.MouseButton1Down:Fire(Enum.Axis.X); arcs.MouseDrag:Fire(Enum.Axis.X,.7,0)
-  check(session.getDraft().HitboxOffsetX==0 and session.getDraft().HitboxRotationX==0,"AC01 Preview ignores stray handle events")
-  check(session.setMode("Move") and handles.Visible and not arcs.Visible,"AC01 Move exposes only Handles")
-  handles.MouseButton1Down:Fire(Enum.NormalId.Right); handles.MouseDrag:Fire(Enum.NormalId.Right,2); handles.MouseDrag:Fire(Enum.NormalId.Right,3)
-  check(session.getDraft().HitboxOffsetX==3,"AC02 Live drag uses mouse-down baseline instead of accumulated delta")
-  handles.MouseButton1Up:Fire(Enum.NormalId.Right); handles.MouseDrag:Fire(Enum.NormalId.Right,8)
-  check(session.getDraft().HitboxOffsetX==3,"AC02 Drag without mouse-down cannot mutate draft")
-  check(session.setMode("Resize") and handles.Visible and not arcs.Visible,"AC02 Resize mode available")
-  handles.MouseButton1Down:Fire(Enum.NormalId.Front); handles.MouseDrag:Fire(Enum.NormalId.Front,2); handles.MouseButton1Up:Fire(Enum.NormalId.Front)
-  local draft=session.getDraft()
-  check(draft.Range==8 and draft.HitboxOffsetZ==0,"AC02 Live one-sided front resize preserves opposite face")
-  local capturedDraft=session.getDraft(); capturedDraft.Range=999
-  check(session.getDraft().Range==8,"AC05 Exposed draft is a copy")
-  check(session.setMode("Rotate") and not handles.Visible and arcs.Visible,"AC03 Rotate exposes only ArcHandles")
-  local prior=proxy.CFrame
-  arcs.MouseButton1Down:Fire(Enum.Axis.Y); arcs.MouseDrag:Fire(Enum.Axis.Y,.4,0); arcs.MouseDrag:Fire(Enum.Axis.Y,.7,0)
-  local rotated=proxy.CFrame
-  check(near(prior.Position,rotated.Position) and near(rotated.RightVector,(prior.Rotation*CFrame.fromAxisAngle(Vector3.yAxis,.7)).RightVector),"AC03 Arc drag baseline local rotation keeps center fixed")
-  local beforeOtherAxis=proxy.CFrame
-  arcs.MouseDrag:Fire(Enum.Axis.X,1.2,0)
-  check(proxy.CFrame==beforeOtherAxis,"AC03 Axis-mismatched drag ignored")
-  arcs.MouseButton1Up:Fire(Enum.Axis.X); arcs.MouseDrag:Fire(Enum.Axis.Y,.9,0)
-  check(near(proxy.CFrame.RightVector,(prior.Rotation*CFrame.fromAxisAngle(Vector3.yAxis,.9)).RightVector),"AC03 Stale other-axis mouse-up does not cancel active drag")
-  arcs.MouseButton1Up:Fire(Enum.Axis.Y)
-  check(session.setMode("Preview") and not handles.Visible and not arcs.Visible,"AC03 Preview hides both controls retaining draft")
-  local preserved=session.getDraft().HitboxRotationY
-  arcs.MouseButton1Down:Fire(Enum.Axis.Y); arcs.MouseDrag:Fire(Enum.Axis.Y,2,0)
-  check(session.getDraft().HitboxRotationY==preserved,"AC03 Hidden ArcHandles cannot change draft")
-  session.setMode("Move"); handles.MouseButton1Down:Fire(Enum.NormalId.Top)
-  session.setMode("Resize"); handles.MouseDrag:Fire(Enum.NormalId.Top,4)
-  check(session.getDraft().HitboxHeight==5,"AC03 Mode switch clears unfinished baseline")
+  check(same(session.getDraft(),initial),"AC02 Hidden stale drag ignored")
+  gesture(session,"Move",Enum.NormalId.Right,{1,2,3})
+  local moved=session.getDraft()
+  check(moved.HitboxOffsetX==3 and session.getState().canUndo,"AC06 Multiple drag events form one completed edit")
+  check(session.undo() and same(session.getDraft(),initial) and not session.getState().canUndo,"AC06 One Undo restores exact baseline once")
+  gesture(session,"Move",Enum.NormalId.Right,{0})
+  check(not session.getState().canUndo and same(session.getDraft(),initial),"AC06 No-op Move adds no history")
+  gesture(session,"Rotate",Enum.Axis.X,{0})
+  check(not session.getState().canUndo and same(session.getDraft(),initial),"AC06 No-op Rotate preserves exact draft/history")
+  gesture(session,"Move",Enum.NormalId.Right,{2})
+  local afterMove=session.getDraft()
+  gesture(session,"Resize",Enum.NormalId.Front,{2})
+  local afterAxis=session.getDraft()
+  session.setScaleMode("Uniform")
+  gesture(session,"Resize",Enum.NormalId.Top,{1,2})
+  local afterUniform=session.getDraft()
+  gesture(session,"Rotate",Enum.Axis.Y,{.4,.7})
+  local afterRotate=session.getDraft()
+  check(session.undo() and same(session.getDraft(),afterUniform),"AC06 Rotate undone exactly")
+  check(session.undo() and same(session.getDraft(),afterAxis),"AC06 Uniform resize undone exactly")
+  check(session.undo() and same(session.getDraft(),afterMove),"AC06 Axis resize undone exactly")
+  check(session.undo() and same(session.getDraft(),initial) and not session.getState().canUndo,"AC06 Move undone last in reverse order")
+  gesture(session,"Move",Enum.NormalId.Right,{3})
+  local historyDraft=session.getDraft()
+  local oldHandles,oldArcs=handles,arcs
+  session.setPreviewVisible(false)
+  check(not session.getState().visible and session.getState().mode=="Preview" and #core:GetChildren()==0 and oldHandles.destroyed and oldArcs.destroyed,"AC01 Off clears tools/resources")
+  check(same(session.getDraft(),historyDraft) and session.getState().canUndo and lastMessage=="Preview Ended","AC01/04 Off retains exact draft/history and exact status")
+  oldHandles.MouseButton1Down:Fire(Enum.NormalId.Right); oldHandles.MouseDrag:Fire(Enum.NormalId.Right,10)
+  check(same(session.getDraft(),historyDraft),"AC02 Stale disposed controls cannot edit")
+  check(session.undo() and same(session.getDraft(),initial) and not session.getState().canUndo,"AC06 Undo while off updates retained draft")
+  check(session.setPreviewVisible(true) and #core:GetChildren()==1 and session.getState().mode=="Preview","AC01 On restores single preview with no tool")
+  check(same(session.getDraft(),initial) and not handles.Visible and not arcs.Visible,"AC01 On retains exact geometry/history")
+  session.setMode("Move"); handles.MouseButton1Down:Fire(Enum.NormalId.Right); handles.MouseDrag:Fire(Enum.NormalId.Right,2)
+  check(session.undo() and same(session.getDraft(),initial) and not session.getState().canUndo,"AC06 Midgesture Undo restores current baseline once")
+  handles.MouseDrag:Fire(Enum.NormalId.Right,7); handles.MouseButton1Up:Fire(Enum.NormalId.Right)
+  check(same(session.getDraft(),initial) and not session.getState().canUndo,"AC06 Interrupted drag callbacks cannot recommit")
+  gesture(session,"Move",Enum.NormalId.Top,{1})
+  check(session.undo() and same(session.getDraft(),initial),"AC06 New edit after Undo works")
+  session.setMode("Resize"); handles.MouseButton1Down:Fire(Enum.NormalId.Right); handles.MouseDrag:Fire(Enum.NormalId.Right,2)
+  local beforeScaleSwitch=session.getDraft()
+  session.setScaleMode("Axis"); handles.MouseDrag:Fire(Enum.NormalId.Right,5); handles.MouseButton1Up:Fire(Enum.NormalId.Right)
+  check(same(session.getDraft(),beforeScaleSwitch),"AC03 Scale choice interrupts drag without applying stale deltas")
+  check(session.undo() and same(session.getDraft(),initial) and not session.getState().canUndo,"AC06 Interrupted accepted drag finalized once")
+  session.setScaleMode("Uniform"); session.setScaleMode("Axis"); session.setMode("Move"); session.setMode("Preview")
+  check(not session.getState().canUndo and same(session.getDraft(),initial),"AC03/06 Tool/scale toggles never add history")
   selection={second}; render:Fire()
-  check(box.Adornee==root and session.getDraft().Range==8,"AC01 Later selection never silently retargets session")
-  root.CFrame=CFrame.new(9,5,-4)*CFrame.Angles(.1,-1.2,.2); render:Fire()
-  check(near(proxy.Position,(root.CFrame*CFrame.new(3,0,-4)).Position),"AC02 Root movement/rotation refreshes preview transform")
-  for key,value in source do check(config[key]==value,"AC05 Preview preserves config "..key) end
+  local capturedBox=core:GetChildren()[1]:FindFirstChild("HitboxPreview")
+  check(capturedBox.Adornee==root,"AC01 Later selection never retargets captured root")
+  session.setPreviewVisible(false); check(session.setPreviewVisible(true),"AC01 Off/on resumes captured reference")
+  check(core:GetChildren()[1].HitboxPreview.Adornee==root,"AC01 Retry after off does not retarget another selected dummy")
+  for key,value in source do check(config[key]==value,"AC07 Draft preserves config "..key) end
+  check(root.CFrame==beforeRoot and #first:GetChildren()==2,"AC07 Preview never changes dummy")
   session.destroy()
-  check(handles.destroyed and arcs.destroyed and #core:GetChildren()==0 and activeConnections==0,"AC05 Cancel destroys preview and disconnects all listeners")
-  local afterDestroy=deactivates; session.destroy()
-  check(deactivates==afterDestroy,"AC05 Session destroy is idempotent")
+  check(#core:GetChildren()==0 and activeConnections==0,"AC07 Destroy disconnects all callbacks")
+  check(not session.setMode("Move") and not session.setPreviewVisible(true) and not session.undo(),"AC07 Destroyed controller inert")
+  selection={first}
+  local rejected=assert(begin()); local rejectBase=rejected.getDraft()
+  rejected.setMode("Resize"); handles.MouseButton1Down:Fire(Enum.NormalId.Right); handles.MouseDrag:Fire(Enum.NormalId.Right,100000)
+  check(not rejected.getState().visible and same(rejected.getDraft(),rejectBase) and not rejected.getState().canUndo,"AC06/07 First rejected render retains exact draft without phantom undo")
+  check(lastMessage:find("render",1,true)~=nil and lastMessage~="Preview Ended","AC04 Render error remains diagnostic")
+  rejected.destroy()
+  local partial=assert(begin()); local partialBase=partial.getDraft()
+  partial.setMode("Resize"); handles.MouseButton1Down:Fire(Enum.NormalId.Right); handles.MouseDrag:Fire(Enum.NormalId.Right,2)
+  local lastGood=partial.getDraft()
+  handles.MouseDrag:Fire(Enum.NormalId.Right,100000)
+  check(not partial.getState().visible and same(partial.getDraft(),lastGood) and partial.getState().canUndo,"AC06/07 Rejected later render keeps accepted portion only")
+  check(partial.undo() and same(partial.getDraft(),partialBase) and not partial.getState().canUndo,"AC06 Accepted partial gesture undone exactly once")
+  partial.destroy()
+  config.HitboxOffsetX=1.234567890123; config.HitboxOffsetY=-2.345678901234; config.HitboxOffsetZ=3.456789012345
+  config.HitboxRotationX=31.123456789; config.HitboxRotationY=-47.23456789; config.HitboxRotationZ=19.3456789
+  local precision=assert(begin()); local precisionBase=precision.getDraft()
+  for _,mode in {"Move","Resize"} do
+   gesture(precision,mode,Enum.NormalId.Right,{0})
+   check(same(precision.getDraft(),precisionBase) and not precision.getState().canUndo,"AC04/06 Zero gesture preserves arbitrary full-precision geometry "..mode)
+  end
+  precision.setScaleMode("Uniform"); gesture(precision,"Resize",Enum.NormalId.Top,{0})
+  check(same(precision.getDraft(),precisionBase) and not precision.getState().canUndo,"AC04/06 Zero uniform gesture preserves full precision")
+  gesture(precision,"Rotate",Enum.Axis.Z,{0}); gesture(precision,"Rotate",Enum.Axis.X,{2*math.pi})
+  check(same(precision.getDraft(),precisionBase) and not precision.getState().canUndo,"AC04/06 Zero/fullturn rotate preserves arbitrary baseline exactly")
+  precision.destroy()
+  config.HitboxOffsetX=nil; config.HitboxOffsetY=nil; config.HitboxOffsetZ=nil
+  config.HitboxRotationX=nil; config.HitboxRotationY=nil; config.HitboxRotationZ=nil
   for _,ending in {"replace","deactivation","unload","play","rootLoss","humanoidLoss"} do
    selection={first}; running=false
-   local old=assert(begin()); local oldHandles=handles; local oldArcs=arcs
-   old.setMode("Rotate"); oldArcs.MouseButton1Down:Fire(Enum.Axis.Z)
+   local old=assert(begin()); local oldHandles,oldArcs=handles,arcs
+   gesture(old,"Move",Enum.NormalId.Right,{2})
+   local retained=old.getDraft()
    if ending=="replace" then
-    local replacement=assert(begin()); check(oldHandles.destroyed,"AC05 Starting another session retires first"); replacement.destroy()
+    local replacement=assert(begin()); check(oldHandles.destroyed,"AC07 Replacement retires prior render"); replacement.destroy()
    elseif ending=="deactivation" then plugin.Deactivation:Fire()
    elseif ending=="unload" then plugin.Unloading:Fire()
    elseif ending=="play" then running=true; render:Fire(); running=false
    elseif ending=="rootLoss" then root.Parent=nil; render:Fire(); root.Parent=first
    else local humanoid=first:FindFirstChildOfClass("Humanoid"); humanoid.Parent=nil; render:Fire(); humanoid.Parent=first end
-   check(oldHandles.destroyed and oldArcs.destroyed and #core:GetChildren()==0 and activeConnections==0,"AC05 Cleanup on "..ending)
-   local oldDraft=old.getDraft(); oldArcs.MouseDrag:Fire(Enum.Axis.Z,2,0)
-   check(old.getDraft().HitboxRotationZ==oldDraft.HitboxRotationZ,"AC05 Ended drag callbacks cannot mutate draft")
-   check(not old.setMode("Move"),"AC05 Ended session cannot reactivate handles")
+   check(oldHandles.destroyed and oldArcs.destroyed and #core:GetChildren()==0,"AC07 Cleanup on "..ending)
+   check(not old.getState().visible and same(old.getDraft(),retained),"AC07 Ending retains safe draft without restart "..ending)
+   if ending~="replace" and ending~="unload" then check(lastMessage=="Preview Ended","AC04 Normal ending exact status "..ending) end
+   old.destroy()
+   check(activeConnections==0,"AC07 No remaining listeners after controller disposal "..ending)
   end
-  check(stops>=4 and type(lastMessage)=="string" and changes>=4,"AC05 Lifecycle endings provide guidance and draft changes are reported")
+
  end)
  -- Ensure even assertion failures stop active sessions before destroying fixtures.
  plugin.Unloading:Fire(); world:Destroy(); core:Destroy()

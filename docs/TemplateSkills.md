@@ -88,7 +88,7 @@ disabled inside the plugin and only generated copies are enabled.
 Open **Update Skills**, select a complete melee config and choose **Edit Hitbox**.
 Save any unsaved common-field edits first. Select an existing R6/R15 dummy Model
 (or one of its descendants) in Workspace before opening the editor for automatic
-Preview. If selection is invalid, select a dummy and use **Start Preview**. The dummy
+Preview. If selection is invalid, select a dummy and use **Toggle Preview**. The dummy
 must contain a Humanoid and a BasePart named HumanoidRootPart. Selecting multiple
 dummy models is refused. Changing selection after starting does not retarget it.
 
@@ -171,8 +171,8 @@ permissions and native change history. Isolated tests cannot prove those results
 ### Preview, resize and rotation
 
 Edit Hitbox immediately previews the selected dummy, with manipulation handles
-hidden. If selection is invalid, select an existing dummy and click Start Preview.
-Preview hides controls without losing the draft; Move, Resize and Rotate expose
+hidden. If selection is invalid, select an existing dummy and click Toggle Preview.
+Turning a tool off hides controls without losing the draft; Move, Resize and Rotate expose
 only their own controls. Resize moves the dragged face while keeping its opposite
 face fixed, with a 0.05-stud minimum on the dragged dimension. Move and resize use
 the rotated box axes. Rotation rings turn around the box center.
@@ -185,3 +185,27 @@ The editor displays equivalent normalized degree values. Save writes all geometr
 in one undo record; Cancel discards the draft. Ordinary skill updates preserve
 rotation. Existing copied Tools are preserved: generate a fresh melee Tool or
 manually port its updated GetConfig, Validate and Cast to consume rotation.
+
+
+### Preview controls, scaling and draft Undo
+
+Toggle Preview shows the retained draft in green/on or black/off. Move, Resize
+and Rotate are mutually exclusive toggles; clicking the active tool hides its
+handles. Turning preview off clears tools but preserves geometry and draft undo.
+Axis scaling moves one face and holds its opposite face fixed. Uniform scales all
+three dimensions proportionally while holding the opposite face center fixed;
+the other corners of that face may move. Axis is the default. Each completed
+geometry gesture is one local Undo step. Undo also works with preview off; during
+a drag it restores the drag's starting geometry. Preview/tool/scale toggles are not
+history edits. Save creates the normal single config Undo record; Cancel discards
+the draft. Neither operation makes local gestures native Studio history.
+
+Numbers display three decimal places without rounding untouched stored values.
+Normal preview termination reads `Preview Ended`; errors retain specific guidance
+and leave valid draft geometry available for retry or Save.
+
+Five actions appear in Studio **Customize Shortcuts**. Recommended bindings are
+Toggle Preview Ctrl+Alt+P, Move Ctrl+Alt+M, Resize Ctrl+Alt+S, Rotate Ctrl+Alt+R and
+Draft Undo Ctrl+Alt+Z. Bind these yourself; the plugin does not install defaults or
+replace Studio Ctrl+Z. Actions are inert outside the visible Edit Hitbox page,
+during Play, saves and text editing. Assign conflicts through Customize Shortcuts.

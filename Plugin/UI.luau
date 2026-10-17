@@ -4,6 +4,8 @@ local AbilityConfig = require(script.Parent.AbilityConfig)
 local AbilityManager = require(script.Parent.AbilityManager)
 local Theme = require(script.Parent.Theme)
 local ColourPicker = require(script.Parent.ColourPicker)
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
 
 function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), preferences: typeof(Theme.new())?, installHitbox: (() -> (boolean, string))?, installExample: (() -> (boolean, string))?, spawnDummy: ((Enum.HumanoidRigType) -> (boolean, string))?, createTemplate: ((string, string) -> (boolean, string))?, hitboxEditor: any?)
  local settings = preferences or Theme.new()
@@ -26,10 +28,16 @@ function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), 
  local projectileAim = "Mouse"
  local order = 0
  local previewSession = nil
+ local pageActions = nil
+ local function numberText(value)
+  local text = string.format("%.3f", value)
+  return if text == "-0.000" then "0.000" else text
+ end
  local function closePreview()
   if previewSession then previewSession.destroy(); previewSession = nil end
  end
  local function reset()
+  pageActions = nil
   closePreview()
   palette = Theme.palette(settings.get())
   green = palette.success
@@ -224,9 +232,11 @@ function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), 
   end))
   for _, item in confirmation do item.Visible = false end
   local name = field("Name", "Skill name", initial.Name)
-  local damage = field("Damage", "Damage (0 or greater)", tostring(initial.Damage))
-  local cooldown = field("Cooldown", "Cooldown in seconds (0 or greater)", tostring(initial.Cooldown))
-  local range = field("Range", "Range in studs (greater than 0)", tostring(initial.Range))
+  local damage = field("Damage", "Damage (0 or greater)", numberText(initial.Damage))
+  local cooldown = field("Cooldown", "Cooldown in seconds (0 or greater)", numberText(initial.Cooldown))
+  local range = field("Range", "Range in studs (greater than 0)", numberText(initial.Range))
+  local originals = { Damage = initial.Damage, Cooldown = initial.Cooldown, Range = initial.Range }
+  local displays = { Damage = damage.Text, Cooldown = cooldown.Text, Range = range.Text }
   local function values(): AbilityConfig.Inputs
    return { Name = name.Text, Damage = damage.Text, Cooldown = cooldown.Text, Range = range.Text }
   end
@@ -243,6 +253,9 @@ function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), 
    busy = true
    save.Text = "Saving..."
    local inputs = values()
+   for _, key in { "Damage", "Cooldown", "Range" } do
+    if inputs[key] == displays[key] then inputs[key] = string.format("%.17g", originals[key]) end
+   end
    for _, input in { name, damage, cooldown, range } do input.TextEditable = false end
    local ok, saved, message = pcall(function()
     if snapshot then return manager.update(snapshot, inputs) end
@@ -256,7 +269,11 @@ function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), 
    status.TextColor3 = if ok and saved then green else red
    if ok and saved then
     dirty = false
+    for _, key in { "Damage", "Cooldown", "Range" } do originals[key] = tonumber(inputs[key]) end
+    damage.Text = numberText(originals.Damage); cooldown.Text = numberText(originals.Cooldown); range.Text = numberText(originals.Range)
     baseline = values()
+    for _, key in { "Damage", "Cooldown", "Range" } do displays[key] = baseline[key] end
+    dirty = false
     for _, item in confirmation do item.Visible = false end
     if snapshot then
      local refreshed, readError = manager.read(snapshot.module)
@@ -281,33 +298,56 @@ function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), 
  showHitbox = function(snapshot)
   reset()
   label("Heading", "Edit Hitbox: " .. snapshot.name, 24)
-  label("HitboxInstructions", "Preview starts with the selected dummy. If none is selected, select one and use Start Preview. Move and Resize follow rotated box axes; Resize moves only the dragged face. Rotate turns around the box center. Selection changes do not retarget the preview.", 14)
+  label("HitboxInstructions", "Preview starts with the selected dummy. Toggle Preview hides or resumes your draft. Move, Resize and Rotate toggle their handles. Axis resize moves one face; Uniform preserves proportions, anchoring the opposite face center. Save keeps the draft; Cancel discards it.", 14)
+  label("HitboxShortcuts", "Assign shortcuts in Studio Customize Shortcuts: Toggle Preview Ctrl+Alt+P; Move Ctrl+Alt+M; Resize Ctrl+Alt+S; Rotate Ctrl+Alt+R; Draft Undo Ctrl+Alt+Z. These are recommendations, not installed bindings. Ctrl+Z remains Studio Undo.", 14)
   local readout = label("HitboxReadout", "No preview started.", 14)
-  local status = label("HitboxStatus", "Changes remain a draft until Save. Cancel discards them.", 14)
+  local status = label("HitboxStatus", "Changes remain a draft until Save.", 14)
+  local controls = {}
+  local activeColor, inactiveColor = Color3.fromRGB(25, 160, 70), Color3.new(0, 0, 0)
+  local function updateState(state)
+   if not status.Parent then return end
+   for key, control in controls do
+    local selected = if key == "TogglePreview" then state.visible elseif key == "Axis" or key == "Uniform" then state.scaleMode == key else state.visible and state.mode == key
+    control.BackgroundColor3 = if selected then activeColor else inactiveColor
+    control.TextColor3 = Color3.new(1, 1, 1)
+   end
+   if controls.Undo then
+    controls.Undo.Active = state.canUndo
+    controls.Undo.AutoButtonColor = state.canUndo
+    controls.Undo.TextTransparency = if state.canUndo then 0 else 0.5
+   end
+  end
   local function changed(draft)
-   readout.Text = string.format("Size: %.4g x %.4g x %.4g studs\nLocal offset: X %.4g, Y %.4g, Z %.4g studs\nRotation: X %.4g, Y %.4g, Z %.4g degrees", draft.HitboxWidth, draft.HitboxHeight, draft.Range, draft.HitboxOffsetX, draft.HitboxOffsetY, draft.HitboxOffsetZ, draft.HitboxRotationX or 0, draft.HitboxRotationY or 0, draft.HitboxRotationZ or 0)
+   if not readout.Parent then return end
+   readout.Text = "Size: " .. numberText(draft.HitboxWidth) .. " x " .. numberText(draft.HitboxHeight) .. " x " .. numberText(draft.Range) .. " studs\nLocal offset: X " .. numberText(draft.HitboxOffsetX) .. ", Y " .. numberText(draft.HitboxOffsetY) .. ", Z " .. numberText(draft.HitboxOffsetZ) .. " studs\nRotation: X " .. numberText(draft.HitboxRotationX or 0) .. ", Y " .. numberText(draft.HitboxRotationY or 0) .. ", Z " .. numberText(draft.HitboxRotationZ or 0) .. " degrees"
   end
-  local function startPreview()
-   closePreview()
-   local session, message = hitboxEditor.start(snapshot.config, changed, function(reason)
-    previewSession = nil
-    if status.Parent then status.Text = reason; status.TextColor3 = red end
+  local actions = {}
+  actions.TogglePreview = function()
+   if not previewSession then return end
+   local ok, message = previewSession.setPreviewVisible(not previewSession.getState().visible)
+   status.Text = message or "Preview Ended"; status.TextColor3 = if ok then palette.text else red
+   updateState(previewSession.getState())
+  end
+  controls.TogglePreview = button("ToggleHitboxPreview", "Toggle Preview", actions.TogglePreview)
+  for _, mode in { "Move", "Resize", "Rotate" } do
+   actions[mode] = function()
+    if not previewSession then return end
+    local state = previewSession.getState()
+    if not state.visible then return end
+    previewSession.setMode(if state.mode == mode then "Preview" else mode)
+   end
+   controls[mode] = button("Hitbox" .. mode, mode, actions[mode])
+  end
+  label("HitboxScaleHelp", "Resize scale", 14)
+  for _, scale in { "Axis", "Uniform" } do
+   controls[scale] = button("HitboxScale" .. scale, scale, function()
+    if previewSession then previewSession.setScaleMode(scale) end
    end)
-   previewSession = session
-   status.Text = message or "Could not start preview."
-   status.TextColor3 = if session then palette.text else red
   end
-  button("StartHitboxPreview", "Start Preview", startPreview)
-  for _, mode in { "Preview", "Move", "Resize", "Rotate" } do
-   button("Hitbox" .. mode, mode, function()
-    if not previewSession then status.Text = "Start Preview first."; status.TextColor3 = red; return end
-    previewSession.setMode(mode)
-    status.Text = if mode == "Preview" then "Preview mode. Handles hidden." elseif mode == "Rotate" then "Rotate mode. Drag an axis ring; angles are degrees." else mode .. " mode. Drag a handle; values are studs."
-    status.TextColor3 = palette.text
-   end)
-  end
+  actions.Undo = function() if previewSession then previewSession.undo() end end
+  controls.Undo = button("UndoHitbox", "Undo", actions.Undo)
   button("SaveHitbox", "Save", function()
-   if not previewSession then status.Text = "Start Preview before saving."; status.TextColor3 = red; return end
+   if not previewSession then status.Text = "No valid draft to save."; status.TextColor3 = red; return end
    busy = true
    local ok, saved, message = pcall(manager.saveGeometry, snapshot, previewSession.getDraft())
    busy = false
@@ -327,7 +367,13 @@ function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), 
    end
   end, true)
   button("CancelHitbox", "Cancel", function() showForm(snapshot) end)
-  startPreview()
+  pageActions = actions
+  local session, message = hitboxEditor.start(snapshot.config, changed, function(reason)
+   if status.Parent then status.Text = reason; status.TextColor3 = if reason == "Preview Ended" then palette.text else red end
+  end, updateState)
+  previewSession = session
+  status.Text = message or "Could not initialize editor."; status.TextColor3 = if session and session.getState().visible then palette.text else red
+  if session then updateState(session.getState()) end
  end
  local function showDelete(module: ModuleScript, expectedName: string)
   reset()
@@ -569,7 +615,7 @@ function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), 
  local visibility = nil
  if widget:IsA("PluginGui") or widget:IsA("ScreenGui") then
   visibility = widget:GetPropertyChangedSignal("Enabled"):Connect(function()
-   if not widget.Enabled then closePreview() end
+   if not widget.Enabled and previewSession then previewSession.setPreviewVisible(false) end
   end)
  end
  root.Destroying:Connect(function()
@@ -577,5 +623,14 @@ function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), 
   if visibility then visibility:Disconnect() end
  end)
  showMenu()
+ return {
+  invoke = function(action)
+   if busy or not root.Parent or not widget.Enabled or not pageActions or RunService:IsRunning() or UserInputService:GetFocusedTextBox() then return false end
+   local callback = pageActions[action]
+   if not callback then return false end
+   callback(); return true
+  end,
+  destroy = function() pageActions = nil; closePreview() end,
+ }
 end
 return UI

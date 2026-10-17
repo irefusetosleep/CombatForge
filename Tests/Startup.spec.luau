@@ -18,6 +18,8 @@ return function(loadMain)
  local click, trigger, unload, changed = signal(), signal(), signal(), signal()
  local active, mounts = nil, 0
  local widgetDestroyed, actionDestroyed, toolbarDestroyed = false, false, false
+ local nativeActions,dispatches={},{}
+ local uiDestroyed=0
  local widget = {
   Enabled = false, Destroy = function() widgetDestroyed = true end,
   GetPropertyChangedSignal = function() return changed end,
@@ -35,13 +37,21 @@ return function(loadMain)
    }
   end,
   CreatePluginAction = function(_, id, text, _, icon, allowBinding)
-   check(id == "CombatForge.OpenEditor" and text == "Open CombatForge" and allowBinding and icon ~= "", "Bindable open action")
-   return {Triggered = trigger, Destroy = function() actionDestroyed = true end}
+   check(allowBinding,"Native action allows user shortcut binding")
+   if id=="CombatForge.OpenEditor" then
+    check(text=="Open CombatForge" and icon~="","Bindable open action")
+    return {Triggered=trigger,Destroy=function() actionDestroyed=true end}
+   end
+   check(nativeActions[id]==nil and id:match("^CombatForge%.Hitbox%."),"AC05 Five stable unique hitbox action identities")
+   local item={Triggered=signal(),destroyed=false}
+   function item:Destroy() self.destroyed=true end
+   nativeActions[id]=item
+   return item
   end,
   CreateDockWidgetPluginGuiAsync = function() return widget end,
  }
  loadMain(plugin, {
-  UI = {mount = function() mounts += 1 end}, AbilityManager = {}, Theme = {new = function() return {} end},
+  UI = {mount = function() mounts += 1; return {invoke=function(name) table.insert(dispatches,name) end,destroy=function() uiDestroyed+=1 end} end}, AbilityManager = {}, Theme = {new = function() return {} end},
   RuntimeInstaller = {}, ExampleInstaller = {}, DummySpawner = {}, TemplateInstaller = {}, HitboxEditor = {isSupported=function() return false end,start=function() return nil end},
  })
  check(mounts == 1 and active == false, "Startup builds editor once")
@@ -50,7 +60,19 @@ return function(loadMain)
  click.Fire(); check(not widget.Enabled, "Toolbar closes")
  trigger.Fire(); check(widget.Enabled and mounts == 1, "Shortcut opens existing editor")
  trigger.Fire(); check(widget.Enabled, "Repeated open never closes editor")
+ local expectedActions={TogglePreview=true,Move=true,Resize=true,Rotate=true,Undo=true}
+ local actionsCount=0
+ for id,item in nativeActions do
+  local name=id:match("%.([^%.]+)$")
+  check(expectedActions[name],"AC05 Only requested hitbox actions registered")
+  actionsCount+=1; item.Triggered.Fire(); check(dispatches[#dispatches]==name,"AC05 Native action delegates shared UI dispatcher")
+ end
+ check(actionsCount==5,"AC05 Exactly five draft shortcut actions")
  unload.Fire(); check(widgetDestroyed and actionDestroyed and toolbarDestroyed, "Unload cleanup")
+ check(uiDestroyed==1,"AC05 Page controller disposed on plugin unload")
+ local beforeDispatch=#dispatches
+ for _,item in nativeActions do check(item.destroyed,"AC05 Owned native action destroyed"); item.Triggered.Fire() end
+ check(#dispatches==beforeDispatch,"AC05 Draft shortcut connections disconnected after unload")
  widget.Enabled = false
  trigger.Fire(); click.Fire(); check(not widget.Enabled, "Disconnected inputs after unload")
  return tostring(count) .. " startup assertions passed"

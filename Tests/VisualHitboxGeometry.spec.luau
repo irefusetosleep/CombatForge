@@ -76,6 +76,28 @@ return function(Editor,Config,linkedModule)
    check(near(movedCenter.Position,initialCenter.Position+initialCenter:VectorToWorldSpace(entry[3]*2)) and movedSize==initialSize,"AC02 Move follows rotated box axes and preserves dimensions")
   end
  end
+ -- VISUAL06 AC03 proportional scale independently checks ratios and opposite-face center.
+ for _,initial in {draft,oriented,{HitboxWidth=.001,HitboxHeight=.002,Range=.003,HitboxOffsetX=2,HitboxOffsetY=-3,HitboxOffsetZ=4,HitboxRotationX=31,HitboxRotationY=-47,HitboxRotationZ=19}} do
+  local oldFrame,oldSize=Editor.transform(root,initial)
+  for _,entry in axes do
+   for _,distance in {2,-.0001,-100,0} do
+    local changed=assert(Editor.drag(initial,"Resize",entry[1],distance,"Uniform"))
+    local newFrame,newSize=Editor.transform(root,changed)
+    local minimumRatio=math.max(math.min(.05,initial.HitboxWidth)/initial.HitboxWidth,math.min(.05,initial.HitboxHeight)/initial.HitboxHeight,math.min(.05,initial.Range)/initial.Range)
+    local ratio=math.max(minimumRatio,(initial[entry[2]]+distance)/initial[entry[2]])
+    check(near(newSize,oldSize*ratio),"VISUAL06 AC03 Uniform all dimensions use one clamped ratio")
+    check(near(oldFrame:PointToWorldSpace(-entry[3]*initial[entry[2]]/2),newFrame:PointToWorldSpace(-entry[3]*changed[entry[2]]/2)),"VISUAL06 AC03 Opposite-face center anchored for all rotated faces")
+    check(near(oldFrame.RightVector,newFrame.RightVector) and near(oldFrame.UpVector,newFrame.UpVector),"VISUAL06 AC03 Uniform orientation preserved")
+    if distance==0 then
+     for key,value in initial do check(changed[key]==value,"VISUAL06 AC03 Uniform zero drag preserves exact geometry "..key) end
+    end
+   end
+  end
+ end
+ check(Editor.drag(oriented,"Resize",Enum.NormalId.Right,1,"Bogus")==nil,"VISUAL06 AC03 Invalid scale mode rejected")
+ for _,bad in {0/0,math.huge,-math.huge} do
+  check(Editor.drag(oriented,"Resize",Enum.NormalId.Top,bad,"Uniform")==nil,"VISUAL06 AC03 Nonfinite uniform distance rejected")
+ end
  local depth=assert(Editor.drag(draft,"Resize",Enum.NormalId.Front,2))
  check(depth.Range==8 and depth.HitboxOffsetZ==0,"AC02 Front face extends outward while opposite back face stays fixed")
  local firstResize=assert(Editor.drag(oriented,"Resize",Enum.NormalId.Right,2))
