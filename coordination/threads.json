@@ -30,7 +30,7 @@
       "owns": "planning material and clarified specification",
       "restriction": "No implementation or test code edits",
       "taskName": "planner",
-      "model": "gpt-6-astra",
+      "model": "gpt-6.1-sol",
       "reasoning_effort": "medium",
       "fork_turns": "none"
     },
@@ -38,34 +38,43 @@
       "name": "Coder",
       "kind": "native-subagent",
       "owns": "production code",
-      "restriction": "May read tests; must not weaken, delete or rewrite tests to pass"
+      "restriction": "May read tests; must not weaken, delete or rewrite tests to pass",
+      "model": "gpt-6.1-sol",
+      "reasoning_effort": "medium",
+      "fork_turns": "none"
     },
     {
       "name": "Tester",
       "kind": "native-subagent",
       "owns": "tests, fixtures and test-specific helpers",
-      "restriction": "No production fixes"
+      "restriction": "No production fixes",
+      "model": "gpt-6.1-sol",
+      "reasoning_effort": "medium",
+      "fork_turns": "none"
     },
     {
       "name": "Reviewer",
       "kind": "native-subagent",
       "owns": "read-only recommendations",
-      "restriction": "Strictly read-only: no file changes or commands that modify the tree or generate artifacts"
+      "restriction": "Strictly read-only: no file changes or commands that modify the tree or generate artifacts",
+      "model": "gpt-6.1-sol",
+      "reasoning_effort": "medium",
+      "fork_turns": "none"
     },
     {
       "name": "Small Edits",
       "kind": "native-subagent",
       "taskName": "small_edits",
       "model": "gpt-6.1-sol",
+      "reasoning_effort": "medium",
       "fork_turns": "none",
       "owns": "assigned compact, clearly scoped, low-risk production edits; coordinator reviews and validates",
-      "restriction": "May read tests; must not weaken, delete or rewrite tests to pass. No spawning agents, commits, installation or live Studio mutation. WORKFLOW-MODELS-02 exception: only the four assigned workflow documentation/configuration files.",
-      "reasoningPolicy": "Omit the reasoning override; inherit the normal harness default."
+      "restriction": "May read tests; must not weaken, delete or rewrite tests to pass. No spawning agents, commits, installation or live Studio mutation. WORKFLOW-MODELS-03 exception: only the four assigned workflow documentation/configuration files."
     }
   ],
   "authoritativeInstructions": "coordination/TEAM-WORKFLOW.md",
   "operatingGuide": "docs/AgentWorkflow.md",
-  "modelPolicy": "Explicit user choices only: Planner gpt-6-astra/medium and Small Edits gpt-6.1-sol with no reasoning override; both fork_turns none. Coordinator, Coder, Tester and Reviewer configured defaults and global settings remain unchanged. Report unavailable requested models; never silently substitute.",
+  "modelPolicy": "WORKFLOW-MODELS-03 later user amendment: Planner, Coder, Tester, Reviewer and Small Edits all explicitly use model gpt-6.1-sol, reasoning_effort medium and fork_turns none. Coordinator configured model/reasoning defaults and global settings remain unchanged. Report unavailable requested models; never silently substitute.",
   "deliveryPolicy": "Prior authorization for local revision installation is separate from publishing. Do not publish, deploy or push without an explicit user request.",
   "retiredArchiveReferences": [
     {

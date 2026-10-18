@@ -52,10 +52,10 @@ The authoritative team instructions are preserved verbatim in
 - Parallelize only independent work with exclusive file ownership. All agents
   share this checkout and must preserve others' work. The host supports the
   coordinator plus three subagents at once; stage the five specialist definitions
-  within that limit, normally Coder plus Tester preparation. Only Planner uses
-  `gpt-6-astra` with `medium` reasoning and Small Edits uses `gpt-6.1-sol` with
-  no reasoning override. Spawn both with `fork_turns="none"`; preserve all other
-  configured model/reasoning defaults and global settings. Report unavailable
+  within that limit, normally Coder plus Tester preparation. All five subagent
+  roles use `model="gpt-6.1-sol"`, `reasoning_effort="medium"` and
+  `fork_turns="none"`. Preserve the coordinator's configured model/reasoning
+  defaults and global settings. Report unavailable
   requested models instead of silently substituting.
 - Briefs include task ID, objective/specification, relevant paths, allowed files,
   acceptance criteria, validation commands and dependencies. Handoffs summarize

@@ -8,11 +8,10 @@ user's original instructions verbatim. Later user amendments in
 workflow wording; all other original requirements remain in force.
 `coordination/threads.json` defines
 the active workflow and retains old chat IDs only as retired archive references.
-Do not assign work to those chats. Native handles are session-scoped, not durable app thread IDs; recreate agents per session using the persisted role definitions. This chat remains the user entry point; no persistent role sidebar chats are needed. Planner is dispatched with `model="gpt-6-astra"`, `reasoning_effort="medium"`,
-`fork_turns="none"`. Small Edits uses `model="gpt-6.1-sol"` and
-`fork_turns="none"`, omitting the reasoning override to inherit the normal
-harness default. Coordinator, Coder, Tester and Reviewer retain their configured
-model and reasoning defaults. Do not change global settings. If a requested
+Do not assign work to those chats. Native handles are session-scoped, not durable app thread IDs; recreate agents per session using the persisted role definitions. This chat remains the user entry point; no persistent role sidebar chats are needed. Planner, Coder, Tester, Reviewer and Small Edits all explicitly use
+`model="gpt-6.1-sol"`, `reasoning_effort="medium"` and `fork_turns="none"`.
+Coordinator retains its configured model and reasoning defaults. Do not change
+global settings. If a requested
 model is unavailable, report the limitation; never silently substitute.
 
 Use real native subagents when available. If unavailable, explain this and run
@@ -33,7 +32,7 @@ affected edit and return it to the coordinator for full-pipeline assignment.
 Small Edits owns only assigned production changes. It may read tests but cannot
 weaken, delete or rewrite tests to pass; test changes belong to Tester. It shares
 all worker restrictions: no spawning agents, commits, plugin installation or live
-Studio mutation. For WORKFLOW-MODELS-02 only, its assignment instead permits
+Studio mutation. For WORKFLOW-MODELS-03 only, its assignment instead permits
 `AGENTS.md`, `coordination/threads.json`, `docs/AgentWorkflow.md` and
 `coordination/WORKFLOW-OVERRIDES.md`; production and test code are excluded.
 The coordinator retains final review, validation, STATUS updates and delivery.

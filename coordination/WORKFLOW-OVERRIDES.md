@@ -1,6 +1,6 @@
 # Later user workflow amendments
 
-Task: WORKFLOW-MODELS-02. These later user instructions amend the original
+Task: WORKFLOW-MODELS-03. These later user instructions amend the original
 `coordination/TEAM-WORKFLOW.md`, which remains preserved verbatim. This file takes
 precedence only where its explicit amendments conflict with the original;
 all unaffected original rules remain in force. AGENTS.md, the operating guide
@@ -8,13 +8,14 @@ and the role registry apply this same precedence.
 
 ## Native role models
 
-- Planner: `model="gpt-6-astra"`, `reasoning_effort="medium"`,
-  `fork_turns="none"`; reusable dispatch label `planner`.
-- Small Edits: `model="gpt-6.1-sol"`, `fork_turns="none"`; omit the reasoning
-  override and inherit the normal harness default. Dispatch label `small_edits`.
-- Coordinator, Coder, Tester and Reviewer keep their configured model and
-  reasoning defaults. Do not modify global settings. If either requested model
-  is unavailable, report that limitation; never silently substitute another.
+- Planner, Coder, Tester, Reviewer and Small Edits all explicitly use
+  `model="gpt-6.1-sol"`, `reasoning_effort="medium"` and `fork_turns="none"`.
+  Planner's reusable dispatch label is `planner`; Small Edits uses `small_edits`.
+- This later user amendment supersedes WORKFLOW-MODELS-02's model and reasoning
+  policy for all five subagent roles.
+- Coordinator keeps its configured model and reasoning defaults. Do not modify
+  global settings. If the requested model is unavailable, report that limitation;
+  never silently substitute another.
 
 Dispatch labels describe roles; native handles remain session-scoped and are
 not durable app thread IDs. Do not create persistent sidebar role chats or use
