@@ -182,6 +182,8 @@ function HitboxEditor.start(plugin, config, onChanged, onStopped, onStateChanged
 	local gestureRoot = nil
  local snaps = { enabled = false, move = 1, resize = 1, rotate = 15 }
 	local baseline, dragAxis, dragMode, dragScale
+ local controlBaseline, controlKey, controlToken = nil, nil, nil
+ local controlGeneration = 0
 	local history = {}
 	local gui, proxy, box, handles, arcs
  local path, pathRoot = nil, nil
@@ -202,12 +204,14 @@ function HitboxEditor.start(plugin, config, onChanged, onStopped, onStateChanged
 		if onStateChanged then onStateChanged(session.getState()) end
 	end
 	local function finishGesture()
+  if controlBaseline and not equal(controlBaseline, draft) then table.insert(history, controlBaseline) end
+  controlBaseline = nil; controlKey = nil; controlToken = nil
 		if baseline and not equal(baseline, draft) then table.insert(history, baseline) end
 		baseline = nil; dragAxis = nil; dragMode = nil; dragScale = nil; gestureRoot = nil
 	end
 	function session.getDraft() return copy(draft) end
 	function session.getState()
-		return { playing = playing, kind = kind, visible = visible, mode = mode, scaleMode = scaleMode, shiftHeld = shiftHeld, space = if shiftHeld and kind ~= "Projectile" then "Global" else "Local", snapping = snaps.enabled, snapEnabled = snaps.enabled, snapIncrement = if mode == "Rotate" then snaps.rotate elseif mode == "Resize" then snaps.resize else snaps.move, snapPreferences = table.clone(snaps), canUndo = baseline ~= nil and not equal(baseline, draft) or #history > 0 }
+		return { controlDragToken = controlToken, controlDragAxis = controlKey, playing = playing, kind = kind, visible = visible, mode = mode, scaleMode = scaleMode, shiftHeld = shiftHeld, space = if shiftHeld and kind ~= "Projectile" then "Global" else "Local", snapping = snaps.enabled, snapEnabled = snaps.enabled, snapIncrement = if mode == "Rotate" then snaps.rotate elseif mode == "Resize" then snaps.resize else snaps.move, snapPreferences = table.clone(snaps), canUndo = controlBaseline ~= nil and not equal(controlBaseline, draft) or baseline ~= nil and not equal(baseline, draft) or #history > 0 }
 	end
 	local function stopRendering(message)
 		finishGesture()
@@ -325,9 +329,7 @@ function HitboxEditor.start(plugin, config, onChanged, onStopped, onStateChanged
 		table.insert(history, copy(draft)); draft = defaults
 		renderDraft(); notify(); return true
 	end
- function session.commit(patch)
-  if ended or kind ~= "Projectile" or type(patch) ~= "table" then return false, "No editable projectile draft." end
-  finishGesture()
+ local function applyProjectilePatch(patch, recordHistory)
   local candidate = copy(draft)
   local allowed = {}; for _, key in projectileKeys do allowed[key] = true end
   for key, value in patch do
@@ -341,8 +343,32 @@ function HitboxEditor.start(plugin, config, onChanged, onStopped, onStateChanged
   local candidatePath, pathError = Trajectory.build(candidate, Vector3.zero, Vector3.new(0,0,-1), Vector3.yAxis)
   if not candidatePath then return false, pathError end
   if equal(candidate, draft) then invalidatePath(); renderDraft(); notify(); return true, "No changes." end
-  table.insert(history, copy(draft)); draft = candidate; invalidatePath(); renderDraft(); notify()
+  if recordHistory then table.insert(history, copy(draft)) end
+  draft = candidate; invalidatePath(); renderDraft(); notify()
   return true, "Projectile draft updated. Save to keep it."
+ end
+ function session.commit(patch)
+  if ended or kind ~= "Projectile" or type(patch) ~= "table" then return false, "No editable projectile draft." end
+  finishGesture()
+  local ok, message = applyProjectilePatch(patch, true)
+  if not ok then notify() end
+  return ok, message
+ end
+ function session.beginControlDrag(key)
+  if ended or RunService:IsRunning() or kind ~= "Projectile" or draft.ProjectileTrajectory ~= "Bezier" then return false, "No editable Bezier controls." end
+  if key ~= "ProjectileControlX" and key ~= "ProjectileControlY" and key ~= "ProjectileControlZ" then return false, "Unsupported control axis." end
+  finishGesture()
+  controlGeneration += 1; controlToken = controlGeneration; controlKey = key; controlBaseline = copy(draft)
+  notify(); return true, controlToken
+ end
+ function session.updateControlDrag(value, token)
+  if ended or RunService:IsRunning() or not controlBaseline or token ~= controlToken then return false, "Control drag ended." end
+  if not finite(value) then return false, "Control offset must be a finite number." end
+  return applyProjectilePatch({ [controlKey] = value }, false)
+ end
+ function session.endControlDrag()
+  if not controlBaseline then return false end
+  finishGesture(); notify(); return true
  end
  function session.play()
   if ended or kind ~= "Projectile" or not visible then return false, "Show Preview before playing it." end
@@ -352,15 +378,18 @@ function HitboxEditor.start(plugin, config, onChanged, onStopped, onStateChanged
  end
  function session.stopPlayback()
   if ended or kind ~= "Projectile" then return false end
-  haltPlayback(); renderDraft(); notify(); return true
+  finishGesture(); haltPlayback(); renderDraft(); notify(); return true
  end
 	function session.undo()
 		if ended then return false end
   if kind == "Projectile" then invalidatePath() end
-		if baseline and not equal(baseline, draft) then
+		if controlBaseline and not equal(controlBaseline, draft) then
+   draft = copy(controlBaseline); controlBaseline = nil; controlKey = nil; controlToken = nil
+  elseif baseline and not equal(baseline, draft) then
 			draft = copy(baseline); baseline = nil; dragAxis = nil; dragMode = nil; dragScale = nil
 		else
 			baseline = nil; dragAxis = nil; dragMode = nil; dragScale = nil
+   controlBaseline = nil; controlKey = nil; controlToken = nil
 			if #history == 0 then
     if kind == "Projectile" then renderDraft(); notify() end
     return false
@@ -461,6 +490,12 @@ function HitboxEditor.start(plugin, config, onChanged, onStopped, onStateChanged
 		if not ok then stopRendering("Could not start preview: " .. tostring(failure)); return false, "Could not start preview: " .. tostring(failure) end
 		notify(); return true, if kind == "Projectile" then "Preview active. Resize edits the projectile collision radius at launch." else "Preview active. Choose Move, Resize or Rotate."
 	end
+ table.insert(lifetime, RunService:GetPropertyChangedSignal("RunState"):Connect(function()
+  if RunService:IsRunning() then finishGesture(); haltPlayback(); notify() end
+ end))
+ table.insert(lifetime, plugin.Deactivation:Connect(function()
+  if not visible and controlBaseline then finishGesture(); notify() end
+ end))
 	table.insert(lifetime, plugin.Unloading:Connect(function() session.destroy() end))
 	activeSession = session
 	if snapValues then session.setSnapPreferences(snapValues) end

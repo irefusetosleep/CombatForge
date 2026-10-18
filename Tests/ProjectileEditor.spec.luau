@@ -42,8 +42,8 @@ return function(Config,loadManager,loadEditor,uiLoader,linkedModule)
    Fire=function(_,...)for _,e in entries do if e.active then e.fn(...)end end end}
  end
  local handles,arcs
- local selection={model};local render=signal();local lastMessage
- local renderEditor=loadEditor({Selection={Get=function()return selection end},RunService={IsRunning=function()return running end,RenderStepped=render},CoreGui=core},{workspace=world,Instance={new=function(class)
+ local selection={model};local render=signal();local runState=signal();local lastMessage
+ local renderEditor=loadEditor({Selection={Get=function()return selection end},RunService={IsRunning=function()return running end,RenderStepped=render,GetPropertyChangedSignal=function(_,name)assert(name=="RunState");return runState end},CoreGui=core},{workspace=world,Instance={new=function(class)
   if class~="Handles" and class~="ArcHandles" then return Instance.new(class)end
   local control={MouseButton1Down=signal(),MouseButton1Up=signal(),MouseDrag=signal(),destroyed=false}
   function control:Destroy()self.destroyed=true end
@@ -115,6 +115,42 @@ return function(Config,loadManager,loadEditor,uiLoader,linkedModule)
   check(session.undo() and session.getDraft().ProjectileSpeed==60 and session.getDraft().ProjectileControlX==2,"TRAJECTORY AC05 Numeric commit separate undo")
   session.commit({ProjectileTrajectory="Straight"});check(session.getDraft().ProjectileControlZ==-3,"TRAJECTORY AC01 Switching Straight retains authored controls")
   session.undo();session.undo();check(session.getDraft().ProjectileTrajectory=="Straight" and not session.getState().canUndo,"TRAJECTORY AC05 Mode/control edits undo exact baseline")
+  check(not session.beginControlDrag("ProjectileControlX"),"SLIDERS AC03 Straight cannot begin control drag")
+  session.commit({ProjectileTrajectory="Bezier",ProjectileControlX=1234.567891234,ProjectileControlY=-2.345678912,ProjectileControlZ=7.89123456})
+  local controlBaseline=session.getDraft()
+  check(not session.beginControlDrag("Range"),"SLIDERS AC03 Only control axes can begin drag")
+  session.play();render:Fire(.05)
+  local begun,token=session.beginControlDrag("ProjectileControlX")
+  check(begun and token~=nil and session.getState().controlDragToken==token,"SLIDERS AC03 Begin exposes capture token")
+  check(session.updateControlDrag(-10000,token) and session.updateControlDrag(10000,token) and session.updateControlDrag(13.123456789,token),"SLIDERS AC02/03 Full-range repeated precise updates")
+  local controlChanged=session.getDraft()
+  check(controlChanged.ProjectileControlX==13.123456789 and controlChanged.ProjectileControlY==controlBaseline.ProjectileControlY and controlChanged.ProjectileControlZ==controlBaseline.ProjectileControlZ and not session.getState().playing,"SLIDERS AC03 Only selected axis changes and playback stops")
+  local marker=gui:FindFirstChild("IntendedControlPoint")
+  check(marker and (marker.CFrame.Position-Vector3.new(13.123456789,controlBaseline.ProjectileControlY,-controlBaseline.Range/2-controlBaseline.ProjectileControlZ)).Magnitude<.001,"SLIDERS AC03 Accepted update redraws control marker live")
+  for _,bad in {10000.01,-10000.01,0/0,math.huge,-math.huge,"3"} do check(not session.updateControlDrag(bad,token) and session.getDraft().ProjectileControlX==13.123456789,"SLIDERS AC02 Invalid update preserves accepted draft")end
+  session.endControlDrag()
+  check(not session.updateControlDrag(1,token) and session.getState().controlDragToken==nil,"SLIDERS AC04 End invalidates stale token")
+  check(session.undo() and session.getDraft().ProjectileControlX==controlBaseline.ProjectileControlX,"SLIDERS AC03 One Undo restores entire drag baseline")
+  local _,noopToken=session.beginControlDrag("ProjectileControlY");session.updateControlDrag(controlBaseline.ProjectileControlY,noopToken);session.endControlDrag()
+  check(session.undo() and session.getDraft().ProjectileTrajectory=="Straight" and not session.getState().canUndo,"SLIDERS AC03 No-op drag creates no extra history")
+  session.commit({ProjectileTrajectory="Bezier"})
+  local _,undoToken=session.beginControlDrag("ProjectileControlZ");session.updateControlDrag(77,undoToken)
+  check(session.undo() and session.getDraft().ProjectileControlZ==0 and not session.updateControlDrag(88,undoToken),"SLIDERS AC04 Undo during drag restores baseline and invalidates token")
+  for _,ending in {"numeric","mode","reset","resize","hide","deactivate","play"} do
+   local _,capture=session.beginControlDrag("ProjectileControlX");check(capture~=nil,"SLIDERS AC04 Fresh capture "..ending)
+   session.updateControlDrag(15,capture)
+   if ending=="numeric" then session.commit({ProjectileSpeed=41})
+   elseif ending=="mode" then session.commit({ProjectileTrajectory="Straight"})
+   elseif ending=="reset" then session.reset()
+   elseif ending=="resize" then session.setMode("Resize")
+   elseif ending=="hide" then session.setPreviewVisible(false)
+   elseif ending=="deactivate" then plugin.Deactivation:Fire()
+   else running=true;runState:Fire();running=false end
+   check(not session.updateControlDrag(99,capture) and session.getState().controlDragToken==nil,"SLIDERS AC04 Session interruption rejects stale update "..ending)
+   if not session.getState().visible then session.setPreviewVisible(true)end
+   session.commit({ProjectileTrajectory="Bezier"})
+  end
+  session.destroy();session=start();gui=assert(core:GetChildren()[1]);sphere=gui:FindFirstChild("HitboxPreview")
   for _,face in {Enum.NormalId.Right,Enum.NormalId.Left,Enum.NormalId.Top,Enum.NormalId.Bottom,Enum.NormalId.Front,Enum.NormalId.Back} do
    drag(session,face,{.2,.7});check(sameRadius(session.getDraft(),1.2),"AC04 Every face r0+d baseline without doubling")
    check(handles.Adornee.Position==root.Position and math.abs(sphere.Radius-1.2)<.00001,"AC04 Resize keeps fixed center and actual sphere radius")
@@ -166,9 +202,10 @@ return function(Config,loadManager,loadEditor,uiLoader,linkedModule)
    if ending~="missing" then check(not session.getState().visible and not session.getState().playing and #core:GetChildren()==0,"AC06 Render cleanup "..ending)end
    session.destroy();session=nil;check(connections==0,"AC06 Listener cleanup "..ending)
   end
-  local ui,actions=uiLoader()
+  local ui,actions,uiServices=uiLoader()
   local host=Instance.new("ScreenGui");host.Enabled=true
   local viewDraft,viewState,onViewChanged,onViewState
+  local captureSerial,dragUpdates=0,0
   local capability={isSupported=renderEditor.isSupported,start=function(config,onChanged,_,onState)
    viewDraft=assert(editor.newDraft(config));viewState={kind="Projectile",visible=true,mode="Preview",canUndo=false,shiftHeld=false,snapping=false,snapIncrement=1}
    onViewChanged=onChanged;onViewState=onState
@@ -179,6 +216,14 @@ return function(Config,loadManager,loadEditor,uiLoader,linkedModule)
     commit=function(patch)for key,value in patch do viewDraft[key]=value end;viewState.canUndo=true;onChanged(viewDraft);onState(viewState);return true,"Projectile draft updated" end,play=function()viewState.playing=true;onState(viewState);return true,"Playing preview" end,stopPlayback=function()viewState.playing=false;onState(viewState);return true end,
     reset=function()viewDraft.ProjectileRadius=.5;viewState.canUndo=true;onChanged(viewDraft);onState(viewState);return true end,
     undo=function()return false end,destroy=function()viewState.visible=false end}
+   function controller.beginControlDrag(key)
+    captureSerial+=1;viewState.controlDragToken=captureSerial;viewState.controlDragAxis=key;onState(viewState);return true,captureSerial
+   end
+   function controller.updateControlDrag(value,token)
+    if token~=viewState.controlDragToken then return false end
+    dragUpdates+=1;viewDraft[viewState.controlDragAxis]=value;viewState.canUndo=true;onChanged(viewDraft);onState(viewState);return true,"Updated"
+   end
+   function controller.endControlDrag()viewState.controlDragToken=nil;viewState.controlDragAxis=nil;onState(viewState);return true end
    onChanged(viewDraft);onState(viewState);return controller,"Preview active"
   end}
   local mounted=ui.mount(host,manager,nil,nil,nil,nil,capability)
@@ -189,9 +234,38 @@ return function(Config,loadManager,loadEditor,uiLoader,linkedModule)
   actions.EditHitbox()
   check(content:FindFirstChild("HitboxMove")==nil and content:FindFirstChild("HitboxRotate")==nil and content:FindFirstChild("HitboxResize")~=nil,"AC03 Projectile modes restricted to Resize")
   check(content.HitboxReadout.Text:find("Radius",1,true) and content.HitboxReadout.Text:find("1.200",1,true) and content.HitboxReadout.Text:find("2.400",1,true),"AC03 Radius/diameter readout three decimals")
-  check(content.HitboxInstructions.Text:lower():find("launch",1,true) and content.HitboxInstructions.Text:find("Range",1,true),"AC03 Help launch sphere distinct from travel Range")
+  check(content.HitboxInstructions.Text:lower():find("launch",1,true) and content.HitboxInstructions.Text:lower():find("radius",1,true),"SLIDERS AC05 Concise launch sphere/radius meaning")
+  local pathHelp=content.ProjectilePathHelp.Text:lower();local upgradeHelp=content.ProjectileUpgradeHelp.Text
+  check(pathHelp:find("dummy",1,true) and pathHelp:find("no collision",1,true) and pathHelp:find("range",1,true) and pathHelp:find("speed",1,true) and pathHelp:find("lifetime",1,true),"SLIDERS AC05 Sample aim/collision/travel cap meaning preserved")
+  check(upgradeHelp:find("Skill",1,true) and upgradeHelp:find("Trajectory",1,true) and upgradeHelp:find("Config",1,true),"SLIDERS AC05 Old Tool manual upgrade meaning preserved")
   check(content.ProjectileControlXInput.Visible==false and content.ProjectileSpeedInput and content.ProjectileLifetimeInput and content.RangeInput,"TRAJECTORY AC01 Straight hides controls but exposes speed/lifetime/Range")
   actions.TrajectoryBezier();check(viewDraft.ProjectileTrajectory=="Bezier" and content.ProjectileControlXInput.Visible,"TRAJECTORY AC01 Bezier button exposes control triple")
+  for _,axis in {"X","Y","Z"}do
+   local track=content["ProjectileControl"..axis.."Slider"]
+   check(track.Visible and track:FindFirstChild("Marker") and track:FindFirstChild("Range"),"SLIDERS AC01 Slider marker/range visible "..axis)
+  end
+  local xDown=actions.ProjectileControlXSliderMouseButton1Down
+  local xMove=actions.ProjectileControlXSliderMouseMoved
+  local xUp=actions.ProjectileControlXSliderMouseButton1Up
+  check(type(xDown)=="function" and type(xMove)=="function" and type(xUp)=="function","SLIDERS AC04 Native track callbacks bound")
+  xDown(100);check(viewDraft.ProjectileControlX==-100,"SLIDERS AC02 Left endpoint")
+  xMove(200);check(viewDraft.ProjectileControlX==0 and content.ProjectileControlXInput.Text=="0.000","SLIDERS AC02/03 Center maps zero and synchronizes text")
+  xMove(999);check(viewDraft.ProjectileControlX==100,"SLIDERS AC02 Clamp right endpoint")
+  xUp();local stopped=dragUpdates;xMove(100);check(dragUpdates==stopped,"SLIDERS AC04 Release rejects stale movement")
+  for _,ending in {"leave","outside","focus","hide","widget","navigate"}do
+   xDown(220)
+   if ending=="leave" then actions.ProjectileControlXSliderMouseLeave()
+   elseif ending=="outside" then uiServices.UserInputService.InputEnded:Fire({UserInputType=Enum.UserInputType.MouseButton1,KeyCode=Enum.KeyCode.Unknown})
+   elseif ending=="focus" then uiServices.UserInputService.WindowFocusReleased:Fire();uiServices.UserInputService.WindowFocused:Fire()
+   elseif ending=="hide" then actions.ToggleHitboxPreview()
+   elseif ending=="widget" then host.Enabled=false;xMove(240);host.Enabled=true
+   else actions.Back();actions.KeepEditing()end
+   stopped=dragUpdates;xMove(240);check(dragUpdates==stopped,"SLIDERS AC04 UI interruption rejects stale movement "..ending)
+  end
+  content.ProjectileControlXInput.Text="1234.567891234";actions.ProjectileControlXInputFocusLost()
+  check(viewDraft.ProjectileControlX==1234.567891234,"SLIDERS AC02 Typed expanded value exact")
+  xDown(300);check(math.abs(viewDraft.ProjectileControlX-1234.567891234)<.00000001,"SLIDERS AC02 Expanded endpoint represents authored value")
+  xMove(200);xUp();check(viewDraft.ProjectileControlX==0,"SLIDERS AC02 Expanded range center stays zero")
   local unchangedSpeed=viewDraft.ProjectileSpeed
   actions.ProjectileSpeedInputFocusLost();check(viewDraft.ProjectileSpeed==unchangedSpeed,"TRAJECTORY AC01 Unchanged three-decimal commit preserves precision")
   content.ProjectileControlYInput.Text="12.3456789";actions.ProjectileControlYInputFocusLost()
@@ -199,6 +273,10 @@ return function(Config,loadManager,loadEditor,uiLoader,linkedModule)
   actions.PlayProjectilePreview();check(viewState.playing,"TRAJECTORY AC03 UI Play delegates shared session")
   actions.StopProjectilePreview();check(not viewState.playing,"TRAJECTORY AC03 UI Stop delegates shared session")
   actions.TrajectoryStraight();check(viewDraft.ProjectileControlY==12.3456789 and not content.ProjectileControlYInput.Visible,"TRAJECTORY AC01 Mode switch retains control draft")
+  for _,axis in {"X","Y","Z"}do
+   local key="ProjectileControl"..axis
+   check(not content[key.."Slider"].Visible and not content[key.."Input"].Visible and not content[key.."Label"].Visible,"SLIDERS AC01 Straight hides complete axis group "..axis)
+  end
   mounted.invoke("Move");mounted.invoke("Rotate");check(viewState.mode=="Preview" and viewDraft.ProjectileRadius==1.2,"AC03 Unsupported shortcuts no-op")
   viewDraft.ProjectileRadius=2.3456789;viewState.canUndo=true;onViewChanged(viewDraft);onViewState(viewState)
   actions.Back();check(content.DiscardPrompt.Visible,"AC06 Dirty radius Back prompts")
@@ -207,7 +285,20 @@ return function(Config,loadManager,loadEditor,uiLoader,linkedModule)
   local afterUI=assert(Config.parse(target.Source))
   check(afterUI.ProjectileRadius==2.3456789 and afterUI.Range==base.Range and content:FindFirstChild("RangeInput"),"AC05 Actual UI saves precise radius while off without changing Range")
   actions.Back();actions.Back();check(content:FindFirstChild("CreateNewSkill"),"AC01 Preserved form/list/root routes")
-  mounted.destroy();host:Destroy()
+  for _=1,2 do
+   actions.UpdateSkills();actions.Skill1();actions.EditHitbox();actions.TrajectoryBezier()
+   actions.ProjectileControlXSliderMouseButton1Down(230)
+   local oldMove=actions.ProjectileControlXSliderMouseMoved
+   actions.Back();actions.DiscardChanges();stopped=dragUpdates;oldMove(240)
+   check(dragUpdates==stopped,"SLIDERS AC04 Revisiting page leaves old capture inactive")
+   actions.Back();actions.Back()
+  end
+  actions.UpdateSkills();actions.Skill1();actions.EditHitbox();actions.TrajectoryBezier()
+  actions.ProjectileControlXSliderMouseButton1Down(230)
+  local disposedMove=actions.ProjectileControlXSliderMouseMoved
+  mounted.destroy();stopped=dragUpdates;disposedMove(240)
+  check(dragUpdates==stopped and uiServices.UserInputService.InputEnded.Count()==0 and uiServices.UserInputService.WindowFocusReleased.Count()==0,"SLIDERS AC04 Disposal invalidates active drag and releases input listeners")
+  host:Destroy()
   check(beforeSource~=target.Source,"AC05 Only explicit Save changed config")
  end)
  if session then session.destroy()end;plugin.Unloading:Fire();world:Destroy();core:Destroy();storage:Destroy()

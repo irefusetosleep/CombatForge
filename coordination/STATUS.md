@@ -1,47 +1,38 @@
 # Current coordination state
 
-PROJECTILE-TRAJECTORY-01 completed and installed 2026-10-18. See git log for revision.
-Base544dd1f; only this task's work changed. Final spec seven ACs, no open questions.
-Native Planner (Astra medium), Coder, independent Tester and read-only Reviewer ran.
-No active assignments. Coordinator owns final delivery/commit; no publication/push.
+BEZIER-SLIDERS-01 completed and installed 2026-10-18. See git log for revision.
+Spec coordination/specs/BEZIER-SLIDERS-01.md: six ACs, no open questions.
+Feature base6beb98d. Intervening WORKFLOW-MODELS-03 commit7617156 changed all five
+subagent roles to gpt-6.1-sol medium, fork_turns none. Old Astra handles retired;
+new Planner, Coder, Tester, Reviewer and Small Edits ran with requested settings.
+Coordinator defaults/global settings unchanged. No active assignments.
 
-Implemented Straight / quadratic Bezier trajectories with aim-relative midpoint
-control XYZ, speed/lifetime/Range edits, bounded reachable path/control marker and
-one-shot Play/Stop sphere preview. Radius Resize/reset/snapping and local Undo remain.
-Reset changes radius only. Preview uses dummy-forward sample aim, no collision or
-damage. Config source is never evaluated by the plugin. Saved fields retain checked
-stale-source/target/history rollback protections and unrelated settings.
+Themed Bezier XYZ sliders retain exact numeric entries and full legal range.
+Symmetric bounds initially +/-100 expand to existing/typed values up to +/-10000
+and freeze during a drag. GUI-track coordinates avoid mixing dock/global frames;
+leaving track ends drag, global release is a completion fallback. Live updates
+change one axis, use one Undo per changed drag, and reject invalid/stale tokens.
+Focus/hide/preview/native deactivation/Play/navigation/prompts/actions/disposal
+end capture. Editor explanations materially shortened, retaining sample aim,
+no collision simulation, travel cap, old-Tool upgrade notes, units/errors/guards.
+Only UI and HitboxEditor production changed. Runtime/schema/math unchanged.
 
-Same pure Runtime/ProjectileTrajectory source is packaged in plugin and nested new
-projectile Skill.Trajectory. 128 intervals/129 points, sampled distance-based travel,
-Range/lifetime caps, ordered spherecasts <=1024 actual studs and256 portions/frame.
-Zero rounded displacements are skipped safely; excessive work fails before partial
-frame casting. Impact center uses actual cast direction/Distance with numeric checks.
-Static path draws <=128 clipped sampled chords independently of runtime sweep budget.
-Legacy absent fields remain Straight. Existing Tools/modules are preserved. Curves
-need new projectile Tool generation or manual Skill+Trajectory replacement preserving
-Config; saving alone does not upgrade old runtime. UI/docs state this explicitly.
+AC01-06 passed isolated checks; native physical input/layout remains not run.
+Full harness4239 (including425 projectile editor) plus separate logo70 =4309
+assertions passed. Initial test failure was stale button callback instrumentation;
+Tester matched the new endControlCapture wrapper without weakening behavior.
+Tests cover exact precision/expansion/grouped Undo/no-ops/invalid input/stale events,
+widget hide, repeated visits, active disposal and listener cleanup. Native factory
+smoke passed actual sphere/path/native Handles and grouped control updates followed
+by exactly one Undo and stale-token rejection, motion/Stop/cleanup retained.
+Rojo build, Test-PluginPackage.ps1 and git diff --check passed. Installer rebuilt,
+validated, backed up and hash-verified local revision. Backup:
+build/plugin-backups/CombatForge-20261018-073628-9361100.rbxmx.
+Reviewer: No blocking findings; verification incomplete (manual checks below).
 
-AC01-07 passed isolated verification: full injected harness4184 + separate logo70 =
-4254 assertions passed. Final fresh snapshot refreshed help text/test diagnostics.
-Includes1612 trajectory analytic/runtime checks,370 projectile editor checks, retained
-melee/template/settings/keybind/lifecycle regressions and actual WorldModel queries.
-Native factory passed actual sphere/BoxHandleAdornment path/control/native Handles,
-sampled motion after native BindableEvent render tick, Stop/commit/Undo, reference
-movement and hide cleanup. No persistent Studio test content changed.
-
-Review found numeric zero/rounded sweep defects and whole-route preview budget bug;
-Coder fixed and Tester added regressions. Engine preview startup exposed extra nil
-return passed to native PointToObjectSpace; fixed by capturing one Vector3. Fixture
-updates preserved legacy optional trajectory fields and truthful callback messages.
-Reviewer: Approved based on available evidence; no blocking findings.
-Rojo build, Test-PluginPackage.ps1 and git diff --check passed. Installer backed up
-and hash-verified local Roblox plugin. Backup:
-build/plugin-backups/CombatForge-20261018-072413-1193943.rbxmx.
-
-Manual checks NOT RUN: physical text/handle/key input, rendered path/marker appearance,
-live generated Tool motion and curved-obstacle Play integration, native Save Undo/
-Redo. Native property/event probes and injected collision tests do not prove these.
-After restarting Studio, open a projectile Edit Hitbox, select Bezier, set offsets,
-Play/Stop/Undo/Save; generate a new Tool and verify curved collision during Play.
-Check Range/lifetime truncate motion consistently and all visuals vanish on exit.
+Manual checks NOT RUN: physical slider drag/release in docked/floating widgets,
+actual narrow/wide layout and theme appearance, native source Save Undo/redo.
+After restarting Studio: projectile Edit Hitbox -> Bezier; drag XYZ, type exact
+large values, Undo once, switch Straight/back, hide/focus/navigation/preview exit
+and verify stale movement never edits until a fresh down. Save/reopen precision.
+No persistent Studio test objects, publication or push; existing Tools preserved.

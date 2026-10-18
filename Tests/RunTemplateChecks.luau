@@ -102,15 +102,25 @@ return function(sources)
    services.RunService=run
    local actions = {}
    local source = assert(sources["Plugin/UI.luau"])
-   local marker = "item.Activated:Connect(function() if not busy then action() end end)"
+   local marker = "item.Activated:Connect(function() if not busy then endControlCapture(); action() end end)"
    local instrumented, replacements = source:gsub(marker:gsub("(%W)", "%%%1"), function()
-    return "actions[name] = function() if not busy then action() end end\n  " .. marker
+    return "actions[name] = function() if not busy then endControlCapture(); action() end end\n  " .. marker
    end)
    assert(replacements == 1, "UI callback instrumentation must match once")
    instrumented = instrumented:gsub("input%.FocusLost:Connect%(function%(%)", "captureFocus(input, function()")
    instrumented = instrumented:gsub("segment%.Activated:Connect%(function%(%)", "captureSegment(segment, function()")
+   for _,event in {"MouseButton1Down","MouseMoved","MouseLeave","MouseButton1Up"} do
+    instrumented = instrumented:gsub("track%."..event..":Connect%(function%(", "captureTrack(track, \""..event.."\", function(")
+   end
+   -- Isolated ScreenGui layout has no viewport. Supply a stable native-GUI
+   -- rectangle only for the slider calculations; production still uses layout.
+   instrumented = instrumented:gsub("track%.AbsoluteSize%.X", "sliderWidth")
+   instrumented = instrumented:gsub("track%.AbsolutePosition%.X", "sliderLeft")
    local ui = module("Plugin/UI.luau", services, {AbilityConfig=parser, AbilityManager={}, Theme=theme, ColourPicker=colourPicker, Keybinds=keybinds, SnapPreferences=snapPrefs,ProjectileTrajectory=trajectory}, {
-    actions=actions, captureFocus=function(input, callback)
+    actions=actions, sliderWidth=200,sliderLeft=100,captureTrack=function(track,event,callback)
+     actions[track.Name..event]=callback
+     return track[event]:Connect(callback)
+    end,captureFocus=function(input, callback)
      actions[input.Name.."FocusLost"]=callback
      return input.FocusLost:Connect(callback)
     end, captureSegment=function(segment, callback)

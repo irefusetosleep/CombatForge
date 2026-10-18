@@ -23,10 +23,11 @@ return function(loadEditor)
  local selection={first}
  local running=false
  local render=signal()
+ local runState=signal()
  local handles,arcs
  local hiddenBeforeParent=true
  local geometryBeforeAdornee=true
- local editor=loadEditor({Selection={Get=function() return selection end},RunService={IsRunning=function() return running end,RenderStepped=render},CoreGui=core}, {
+ local editor=loadEditor({Selection={Get=function() return selection end},RunService={IsRunning=function() return running end,RenderStepped=render,GetPropertyChangedSignal=function(_,name)assert(name=="RunState");return runState end},CoreGui=core}, {
   workspace=world,Instance={new=function(class)
    if class~="Handles" and class~="ArcHandles" then return Instance.new(class) end
    local properties={MouseButton1Down=signal(),MouseButton1Up=signal(),MouseDrag=signal(),destroyed=false}

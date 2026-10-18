@@ -11,6 +11,11 @@ local SnapPreferences = require(script.Parent.SnapPreferences)
 
 function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), preferences: typeof(Theme.new())?, installHitbox: (() -> (boolean, string))?, spawnDummy: ((Enum.HumanoidRigType) -> (boolean, string))?, createTemplate: ((string, string) -> (boolean, string))?, hitboxEditor: any?, keybindPreferences: any?, snapPreferences: any?)
  local previewSession = nil
+ local controlCapture = nil
+ local function endControlCapture()
+  controlCapture = nil
+  if previewSession and previewSession.endControlDrag then previewSession.endControlDrag() end
+ end
  local settings = preferences or Theme.new()
  local keybinds = keybindPreferences or Keybinds.new()
  local snapSettings = snapPreferences or SnapPreferences.new()
@@ -68,6 +73,7 @@ function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), 
   return if text == "-0.000" then "0.000" else text
  end
  local function closePreview()
+  endControlCapture()
   if previewSession then previewSession.destroy(); previewSession = nil end
  end
  local function reset()
@@ -136,7 +142,7 @@ function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), 
   else
    place(item, name)
   end
-  item.Activated:Connect(function() if not busy then action() end end)
+  item.Activated:Connect(function() if not busy then endControlCapture(); action() end end)
   return item
  end
  local function field(name: string, caption: string, initial: string): TextBox
@@ -324,6 +330,7 @@ function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), 
   local confirmation: { GuiObject } = {}
   local pendingDestination = nil
   local function navigate(destination)
+   endControlCapture()
    if dirty then
     pendingDestination = destination; promptActive = true
     for _, item in confirmation do item.Visible = true end
@@ -411,22 +418,24 @@ function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), 
   reset()
   local projectile = AbilityConfig.hitboxKind(snapshot.config) == "Projectile"
   label("Heading", "Edit Hitbox: " .. snapshot.name, 24)
-  label("HitboxInstructions", if projectile then "Preview shows the launch sphere and sampled reachable path using dummy-forward sample aim, without collision simulation. Resize changes radius uniformly around the launch center. Edit Range and trajectory below; Range caps traveled distance. Move and Rotate do not apply: launch position is runtime-defined and a sphere has no direction. Shift does not change sphere resizing." else "Preview starts with the selected dummy. Toggle Preview hides or resumes your draft. Move, Resize and Rotate toggle their handles. Hold Shift for Uniform Resize or Global Move/Rotate. Uniform anchors the opposite face center. Save keeps the draft; Back asks before discarding changes.", 14)
-  label("HitboxShortcuts", "Configure local keybinds in CombatForge Settings. Defaults: Ctrl+Alt+P/M/S/R/Z for preview, Move, Resize, Rotate and draft Undo. Studio Ctrl+Z is unchanged. If a Studio shortcut uses the same chord, change one binding.", 14)
+  label("HitboxInstructions", if projectile then "Launch sphere preview. Resize edits collision radius around the fixed launch center." else "Preview uses the selected dummy. Uniform Resize anchors the opposite face center. Save keeps your draft; Back checks unsaved changes.", 14)
+  label("HitboxShortcuts", "Shortcuts: CombatForge Settings. Defaults Ctrl+Alt+P/M/S/R/Z: Preview, Move, Resize, Rotate, Undo. Studio Ctrl+Z is unchanged.", 14)
   local readout = label("HitboxReadout", "No preview started.", 14)
   local status = label("HitboxStatus", "Changes remain a draft until Save.", 14)
   local controls = {}
   local pathInputs, pathDisplays, trajectoryButtons = {}, {}, {}
+  local controlSliders, controlBounds = {}, {}
   local modifierReadout = nil
   local activeColor, inactiveColor = palette.accent, palette.surface
   local function updateState(state)
+   if controlCapture and controlCapture.token ~= state.controlDragToken then controlCapture = nil end
    if not status.Parent then return end
    for key, control in controls do
     local selected = if key == "TogglePreview" then state.visible elseif key == "Snapping" then state.snapping else state.visible and state.mode == key
     control.BackgroundColor3 = if selected then activeColor else inactiveColor
     control.TextColor3 = if selected then palette.accentText else palette.text
    end
-   if modifierReadout then modifierReadout.Text = if projectile then "Projectile radius resize: fixed launch center; Shift has no effect on radius or orientation." elseif state.shiftHeld then "Shift held: Global Move/Rotate; Uniform Resize. Release and grab again after changing Shift." else "Local Move/Rotate; Axis Resize. Hold Shift for Global axes or Uniform Resize; changing Shift ends the drag." end
+   if modifierReadout then modifierReadout.Text = if projectile then "Radius resize: fixed launch center." elseif state.shiftHeld then "Shift: Global Move/Rotate; Uniform Resize." else "Local axes; Axis Resize. Shift: Global axes / Uniform Resize." end
    if controls.TogglePreview then controls.TogglePreview.Text = if state.visible then "Preview: On" else "Preview: Off" end
    if controls.Snapping then controls.Snapping.Text = "Snapping: " .. (if state.snapping then "On" else "Off") end
    if modifierReadout then
@@ -450,6 +459,14 @@ function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), 
      if key:match("^ProjectileControl") then
       input.Visible = draft.ProjectileTrajectory == "Bezier"
       local caption = root:FindFirstChild(key .. "Label"); if caption then caption.Visible = input.Visible end
+      local slider = controlSliders[key]
+      if slider then
+       slider.Visible = input.Visible
+       if not controlCapture or controlCapture.key ~= key then controlBounds[key] = math.min(10000, math.max(controlBounds[key], math.abs(draft[key]))) end
+       local bound = controlBounds[key]
+       slider.Marker.Position = UDim2.new(math.clamp((draft[key] + bound) / (2 * bound), 0, 1), 0, 0.5, 0)
+       slider.Range.Text = numberText(-bound) .. " to " .. numberText(bound) .. " studs"
+      end
      end
     end
     for mode, item in trajectoryButtons do
@@ -465,6 +482,7 @@ function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), 
   local navigationPrompt = {}
   local pendingDestination = nil
   local function navigate(destination)
+   endControlCapture()
    local current = if previewSession then previewSession.getDraft() else nil
    local dirty = false
    if current and initialDraft then
@@ -504,8 +522,8 @@ function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), 
    controls[mode] = button("Hitbox" .. mode, mode, actions[mode])
   end
   if projectile then
-   label("ProjectilePathHelp", "Sampled quadratic Bezier motion uses dummy-forward sample aim for both aim modes; it does not capture your mouse or simulate collisions. Cyan lines show reachable travel under Range and speed * lifetime. The amber marker is the intended control point, not a reachable target. Curved routes may stop before their intended endpoint because Range caps traveled distance.", 14)
-   label("ProjectileUpgradeHelp", "Curves require a newly generated projectile Tool, or manually replacing its Skill and Trajectory child while preserving Config. Saving does not upgrade old Tools. Radius, Range, speed and lifetime still work on old linked Tools.", 14)
+   label("ProjectilePathHelp", "Dummy-forward sample aim; no collision simulation. Cyan path: travel capped by Range and speed * lifetime. Amber: intended control point; curves may stop short.", 14)
+   label("ProjectileUpgradeHelp", "Old Tools need regeneration or manual Skill + Trajectory replacement preserving Config for curves. Saving does not upgrade them.", 14)
    for _, mode in { "Straight", "Bezier" } do
     trajectoryButtons[mode] = button("Trajectory" .. mode, if mode == "Bezier" then "Trajectory: Bezier (quadratic)" else "Trajectory: Straight", function()
      if not previewSession then return end
@@ -516,7 +534,43 @@ function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), 
    for _, entry in { { "ProjectileControlX", "Control X offset (right, studs)" }, { "ProjectileControlY", "Control Y offset (up, studs)" }, { "ProjectileControlZ", "Control Z offset (forward, studs)" }, { "ProjectileSpeed", "Projectile Speed (studs/second)" }, { "ProjectileLifetime", "Lifetime (seconds)" }, { "Range", "Range (maximum traveled studs)" } } do
     local key = entry[1]
     local input = field(key, entry[2], "0.000"); pathInputs[key] = input
+    if key:match("^ProjectileControl") then
+     local track = Instance.new("TextButton")
+     track.Size = UDim2.new(1, -8, 0, 34); track.BackgroundColor3 = palette.surface
+     track.BorderSizePixel = 0; track.Text = ""; track.AutoButtonColor = false
+     place(track, key .. "Slider"); controlSliders[key] = track; controlBounds[key] = 100
+     local rail = Instance.new("Frame"); rail.Name = "Rail"; rail.Size = UDim2.new(1, 0, 0, 4)
+     rail.Position = UDim2.new(0, 0, 0.5, -2); rail.BackgroundColor3 = palette.accent; rail.BorderSizePixel = 0; rail.Parent = track
+     local marker = Instance.new("Frame"); marker.Name = "Marker"; marker.Size = UDim2.fromOffset(10, 18)
+     marker.AnchorPoint = Vector2.new(0.5, 0.5); marker.BackgroundColor3 = palette.text; marker.BorderSizePixel = 0; marker.Parent = track
+     local range = Instance.new("TextLabel"); range.Name = "Range"; range.BackgroundTransparency = 1
+     range.Size = UDim2.new(1, 0, 0, 12); range.TextSize = 10; range.Font = Enum.Font.Gotham
+     range.TextColor3 = palette.text; range.TextXAlignment = Enum.TextXAlignment.Right; range.Parent = track
+     local function moveControl(x)
+      local capture = controlCapture
+      if not capture or capture.key ~= key or not previewSession then return end
+      if capture.token ~= previewSession.getState().controlDragToken then controlCapture = nil; return end
+      if not focused or not widget.Enabled or promptActive or RunService:IsRunning() then endControlCapture(); return end
+      local width = track.AbsoluteSize.X
+      if width <= 0 then endControlCapture(); return end
+      local value = (math.clamp((x - track.AbsolutePosition.X) / width, 0, 1) * 2 - 1) * capture.bound
+      local ok, message = previewSession.updateControlDrag(value, capture.token)
+      status.Text = message; status.TextColor3 = if ok then palette.text else red
+     end
+     track.MouseButton1Down:Connect(function(x)
+      endControlCapture()
+      if not previewSession or not focused or not widget.Enabled or promptActive or busy or RunService:IsRunning() or track.AbsoluteSize.X <= 0 then return end
+      local ok, token = previewSession.beginControlDrag(key)
+      if not ok then return end
+      controlCapture = { key = key, bound = controlBounds[key], token = token }
+      moveControl(x)
+     end)
+     track.MouseMoved:Connect(function(x) moveControl(x) end)
+     track.MouseLeave:Connect(function() endControlCapture() end)
+     track.MouseButton1Up:Connect(function() endControlCapture() end)
+    end
     input.FocusLost:Connect(function()
+     endControlCapture()
      if not previewSession then return end
      local accepted = previewSession.getDraft()
      local value = if input.Text == pathDisplays[key] then accepted[key] else tonumber(input.Text)
@@ -541,7 +595,7 @@ function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), 
    status.Text = message; status.TextColor3 = if ok then palette.text else red
   end)
   button("ResetHitbox", "Reset Hitbox", function() if previewSession then previewSession.reset() end end)
-  modifierReadout = label("HitboxModifier", "Local axes. Hold Shift: global Move/Rotate or Uniform Resize. Release and grab again after changing Shift mid-drag.", 14)
+  modifierReadout = label("HitboxModifier", "Local axes; Shift: Global Move/Rotate or Uniform Resize.", 14)
   actions.Undo = function() if previewSession then previewSession.undo() end end
   controls.Undo = button("UndoHitbox", "Undo", actions.Undo)
   button("SaveHitbox", "Save", function()
@@ -808,6 +862,7 @@ function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), 
  if widget:IsA("PluginGui") or widget:IsA("ScreenGui") then
   visibility = widget:GetPropertyChangedSignal("Enabled"):Connect(function()
    if not widget.Enabled then
+    endControlCapture()
     cancelCapture(); table.clear(held)
     if previewSession then previewSession.setShiftHeld(false); previewSession.setPreviewVisible(false) end
    end
@@ -823,7 +878,7 @@ function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), 
   if busy or promptActive or captureAction or not focused or not root.Parent or not widget.Enabled or not pageActions or RunService:IsRunning() or UserInputService:GetFocusedTextBox() then return false end
   local callback = pageActions[action]
   if not callback then return false end
-  callback(); return true
+  endControlCapture(); callback(); return true
  end
  local digits = { Zero = "0", One = "1", Two = "2", Three = "3", Four = "4", Five = "5", Six = "6", Seven = "7", Eight = "8", Nine = "9" }
  local function modifiers()
@@ -853,16 +908,17 @@ function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), 
   end
  end))
  table.insert(inputConnections, UserInputService.InputEnded:Connect(function(input)
+  if input.UserInputType == Enum.UserInputType.MouseButton1 then endControlCapture() end
   held[input.KeyCode] = nil; syncShift()
  end))
  table.insert(inputConnections, RunService:GetPropertyChangedSignal("RunState"):Connect(function()
   if RunService:IsRunning() then
-   cancelCapture(); table.clear(held)
+   endControlCapture(); cancelCapture(); table.clear(held)
    if previewSession then previewSession.setShiftHeld(false) end
   end
  end))
  table.insert(inputConnections, UserInputService.WindowFocusReleased:Connect(function()
-  focused = false; table.clear(held); cancelCapture()
+  endControlCapture(); focused = false; table.clear(held); cancelCapture()
   if previewSession then previewSession.setShiftHeld(false) end
  end))
  table.insert(inputConnections, UserInputService.WindowFocused:Connect(function()
