@@ -411,11 +411,12 @@ function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), 
   reset()
   local projectile = AbilityConfig.hitboxKind(snapshot.config) == "Projectile"
   label("Heading", "Edit Hitbox: " .. snapshot.name, 24)
-  label("HitboxInstructions", if projectile then "Preview shows the collision sphere at projectile launch, centered on the selected dummy root. Resize changes radius uniformly around its fixed center. Range is travel distance in the common form; this is not a path preview. Move and Rotate do not apply: launch position is runtime-defined and a sphere has no direction. Shift does not change sphere resizing." else "Preview starts with the selected dummy. Toggle Preview hides or resumes your draft. Move, Resize and Rotate toggle their handles. Hold Shift for Uniform Resize or Global Move/Rotate. Uniform anchors the opposite face center. Save keeps the draft; Back asks before discarding changes.", 14)
+  label("HitboxInstructions", if projectile then "Preview shows the launch sphere and sampled reachable path using dummy-forward sample aim, without collision simulation. Resize changes radius uniformly around the launch center. Edit Range and trajectory below; Range caps traveled distance. Move and Rotate do not apply: launch position is runtime-defined and a sphere has no direction. Shift does not change sphere resizing." else "Preview starts with the selected dummy. Toggle Preview hides or resumes your draft. Move, Resize and Rotate toggle their handles. Hold Shift for Uniform Resize or Global Move/Rotate. Uniform anchors the opposite face center. Save keeps the draft; Back asks before discarding changes.", 14)
   label("HitboxShortcuts", "Configure local keybinds in CombatForge Settings. Defaults: Ctrl+Alt+P/M/S/R/Z for preview, Move, Resize, Rotate and draft Undo. Studio Ctrl+Z is unchanged. If a Studio shortcut uses the same chord, change one binding.", 14)
   local readout = label("HitboxReadout", "No preview started.", 14)
   local status = label("HitboxStatus", "Changes remain a draft until Save.", 14)
   local controls = {}
+  local pathInputs, pathDisplays, trajectoryButtons = {}, {}, {}
   local modifierReadout = nil
   local activeColor, inactiveColor = palette.accent, palette.surface
   local function updateState(state)
@@ -442,6 +443,20 @@ function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), 
    if not readout.Parent then return end
    if projectile then
     readout.Text = "Radius: " .. numberText(draft.ProjectileRadius) .. " studs\nDiameter: " .. numberText(2 * draft.ProjectileRadius) .. " studs"
+    for key, input in pathInputs do
+     if UserInputService:GetFocusedTextBox() ~= input then
+      input.Text = numberText(draft[key]); pathDisplays[key] = input.Text
+     end
+     if key:match("^ProjectileControl") then
+      input.Visible = draft.ProjectileTrajectory == "Bezier"
+      local caption = root:FindFirstChild(key .. "Label"); if caption then caption.Visible = input.Visible end
+     end
+    end
+    for mode, item in trajectoryButtons do
+     local selected = draft.ProjectileTrajectory == mode
+     item.BackgroundColor3 = if selected then palette.accent else palette.surface
+     item.TextColor3 = if selected then palette.accentText else palette.text
+    end
     return
    end
    readout.Text = "Size: " .. numberText(draft.HitboxWidth) .. " x " .. numberText(draft.HitboxHeight) .. " x " .. numberText(draft.Range) .. " studs\nLocal offset: X " .. numberText(draft.HitboxOffsetX) .. ", Y " .. numberText(draft.HitboxOffsetY) .. ", Z " .. numberText(draft.HitboxOffsetZ) .. " studs\nRotation: X " .. numberText(draft.HitboxRotationX or 0) .. ", Y " .. numberText(draft.HitboxRotationY or 0) .. ", Z " .. numberText(draft.HitboxRotationZ or 0) .. " degrees"
@@ -487,6 +502,36 @@ function UI.mount(widget: DockWidgetPluginGui, manager: typeof(AbilityManager), 
     previewSession.setMode(if state.mode == mode then "Preview" else mode)
    end
    controls[mode] = button("Hitbox" .. mode, mode, actions[mode])
+  end
+  if projectile then
+   label("ProjectilePathHelp", "Sampled quadratic Bezier motion uses dummy-forward sample aim for both aim modes; it does not capture your mouse or simulate collisions. Cyan lines show reachable travel under Range and speed * lifetime. The amber marker is the intended control point, not a reachable target. Curved routes may stop before their intended endpoint because Range caps traveled distance.", 14)
+   label("ProjectileUpgradeHelp", "Curves require a newly generated projectile Tool, or manually replacing its Skill and Trajectory child while preserving Config. Saving does not upgrade old Tools. Radius, Range, speed and lifetime still work on old linked Tools.", 14)
+   for _, mode in { "Straight", "Bezier" } do
+    trajectoryButtons[mode] = button("Trajectory" .. mode, if mode == "Bezier" then "Trajectory: Bezier (quadratic)" else "Trajectory: Straight", function()
+     if not previewSession then return end
+     local ok, message = previewSession.commit({ ProjectileTrajectory = mode })
+     status.Text = message; status.TextColor3 = if ok then palette.text else red
+    end)
+   end
+   for _, entry in { { "ProjectileControlX", "Control X offset (right, studs)" }, { "ProjectileControlY", "Control Y offset (up, studs)" }, { "ProjectileControlZ", "Control Z offset (forward, studs)" }, { "ProjectileSpeed", "Projectile Speed (studs/second)" }, { "ProjectileLifetime", "Lifetime (seconds)" }, { "Range", "Range (maximum traveled studs)" } } do
+    local key = entry[1]
+    local input = field(key, entry[2], "0.000"); pathInputs[key] = input
+    input.FocusLost:Connect(function()
+     if not previewSession then return end
+     local accepted = previewSession.getDraft()
+     local value = if input.Text == pathDisplays[key] then accepted[key] else tonumber(input.Text)
+     if value == nil then status.Text = key .. " must be a finite number."; status.TextColor3 = red; return end
+     local ok, message = previewSession.commit({ [key] = value })
+     status.Text = message; status.TextColor3 = if ok then palette.text else red
+     if not ok then input.Text = numberText(accepted[key]) end
+    end)
+   end
+   button("PlayProjectilePreview", "Play Preview", function()
+    if previewSession then
+     local ok, message = previewSession.play(); status.Text = message; status.TextColor3 = if ok then palette.text else red
+    end
+   end)
+   button("StopProjectilePreview", "Stop Preview", function() if previewSession then previewSession.stopPlayback() end end)
   end
   controls.Snapping = button("Snapping", "Snapping: Off", function()
    if not previewSession then return end

@@ -7,6 +7,7 @@
       "UI": { "$path": "Plugin/UI.luau" },
       "Theme": { "$path": "Plugin/Theme.luau" },
       "ColourPicker": { "$path": "Plugin/ColourPicker.luau" },
+      "ProjectileTrajectory": { "$path": "Runtime/ProjectileTrajectory.luau" },
       "HitboxEditor": { "$path": "Plugin/HitboxEditor.luau" },
       "HitboxTemplate": { "$path": "Runtime/Hitbox.luau" },
       "RuntimeInstaller": { "$path": "Plugin/RuntimeInstaller.luau" },
@@ -26,7 +27,7 @@
       "ProjectileToolTemplate": {
         "$className": "Tool",
         "$properties": { "RequiresHandle": false, "CanBeDropped": false, "ToolTip": "CombatForge basic projectile skill" },
-        "Skill": { "$path": "Templates/ProjectileSkill.luau" },
+        "Skill": { "$path": "Templates/ProjectileSkill.luau", "Trajectory": { "$path": "Runtime/ProjectileTrajectory.luau" } },
         "Server": { "$path": "Templates/ToolServer.server.luau", "$properties": { "Disabled": true } },
         "Client": { "$path": "Templates/ToolClient.client.luau", "$properties": { "Disabled": true } },
         "ActivateSkill": { "$className": "RemoteEvent" }

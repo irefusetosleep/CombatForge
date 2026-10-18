@@ -1,6 +1,6 @@
 -- TEMPLATE-ALL-CONFIG-03: generated sources and exact object references, with
 -- isolated services/history. Native history and StarterPack cloning remain manual.
-return function(module, Config, templates, hitboxSource)
+return function(module, Config, templates, hitboxSource, trajectory)
  local count=0
  local function check(value,message) assert(value,message); count+=1 end
  local storage,pack=Instance.new("Folder"),Instance.new("Folder")
@@ -45,7 +45,7 @@ return function(module, Config, templates, hitboxSource)
    check(target.Parent==storage.CombatForge.Abilities,"AC01 Shared config exact parent")
    local parsed=assert(Config.parse(target.Source))
    local keys=0; for _ in parsed do keys+=1 end
-   check(keys==(if kind=="Melee" then 14 else 10) and parsed.Name==target.Name and parsed.Damage==20 and parsed.Cooldown==.75 and parsed.Range==(if kind=="Melee" then 6 else 80),"AC01 Full supported shared fields")
+   check(keys==(if kind=="Melee" then 14 else 14) and parsed.Name==target.Name and parsed.Damage==20 and parsed.Cooldown==.75 and parsed.Range==(if kind=="Melee" then 6 else 80),"AC01 Full supported shared fields")
    check(parsed.AnimationId=="" and parsed.HitDelay==0,"AC01 Shared optional-animation defaults")
    if kind=="Melee" then
     check(parsed.HitboxWidth==5 and parsed.HitboxHeight==5,"AC01 Shared melee dimensions")
@@ -69,9 +69,10 @@ return function(module, Config, templates, hitboxSource)
   -- Load the actual installer-produced Skill.Source, permitting only explicit
   -- linked config/runtime requires; this executes generated literal source.
   local runtimeStub
-  local function load(pair,requireOverride)
+  local function load(pair,requireOverride,helperOverride)
    local path="Templates/"..pair.kind.."Skill.luau"
    return module(path,services,function(key)
+    if pair.kind=="Projectile" and key==pair.tool.Skill:FindFirstChild("Trajectory") then return helperOverride or trajectory end
     if requireOverride then return requireOverride(key) end
     if runtimeStub and storage:FindFirstChild("CombatForge") and storage.CombatForge:FindFirstChild("Runtime") and key==storage.CombatForge.Runtime.Hitbox then return runtimeStub end
     assert(key==pair.target,"Runtime must require own exact config reference")
@@ -81,6 +82,16 @@ return function(module, Config, templates, hitboxSource)
   for _,pair in pairs do
    local skill=load(pair)
    local expected=assert(Config.parse(pair.target.Source))
+   if pair.kind=="Projectile" then
+    local helper=pair.tool.Skill.Trajectory
+    check(helper.Source==templates.Projectile.Skill.Trajectory.Source,"TRAJECTORY AC06 Installed nested helper exact packaged source")
+    helper.Name="LostTrajectory";check(skill.GetConfig()==nil,"TRAJECTORY AC06 Missing helper fails clearly");helper.Name="Trajectory"
+    local duplicate=helper:Clone();duplicate.Parent=pair.tool.Skill
+    check(skill.GetConfig()==nil,"TRAJECTORY AC06 Duplicate helper fails closed");duplicate:Destroy()
+    local wrong=Instance.new("Folder");helper.Parent=nil;wrong.Name="Trajectory";wrong.Parent=pair.tool.Skill
+    check(skill.GetConfig()==nil,"TRAJECTORY AC06 Wrong helper class fails closed");wrong:Destroy();helper.Parent=pair.tool.Skill
+    check(load(pair,nil,{}).GetConfig()==nil,"TRAJECTORY AC06 Invalid helper API fails closed")
+   end
    local settings=assert(skill.GetConfig())
    local activated,sent
    local disconnect={Disconnect=function() end}
@@ -119,9 +130,21 @@ return function(module, Config, templates, hitboxSource)
    check(skill.GetConfig()==nil,"AC04 Wrong link class fails closed"); wrongLink:Destroy(); link.Parent=pair.tool.Skill
    local failing=load(pair,function() error("Injected config load failure") end)
    check(failing.GetConfig()==nil,"AC04 Runtime require failure fails closed")
+   local optionalTrajectory={ProjectileTrajectory=true,ProjectileControlX=true,ProjectileControlY=true,ProjectileControlZ=true}
    for key in expected do
-    local missing=table.clone(expected); missing[key]=nil
-    check(load(pair,function() return missing end).GetConfig()==nil,"AC05 Missing required shared "..key.." fails closed")
+    if not optionalTrajectory[key] then
+     local missing=table.clone(expected); missing[key]=nil
+     check(load(pair,function() return missing end).GetConfig()==nil,"AC05 Missing required shared "..key.." fails closed")
+    end
+   end
+   if pair.kind=="Projectile" then
+    local legacy=table.clone(expected);for key in optionalTrajectory do legacy[key]=nil end
+    local capturedLegacy=assert(load(pair,function()return legacy end).GetConfig())
+    check(assert(trajectory.resolve(capturedLegacy)).ProjectileTrajectory=="Straight","TRAJECTORY AC01/06 All absent authored fields retain legacy Straight")
+    for _,key in {"ProjectileControlX","ProjectileControlY","ProjectileControlZ"}do
+     local partial=table.clone(expected);partial[key]=nil
+     check(load(pair,function()return partial end).GetConfig()==nil,"TRAJECTORY AC01 Supplied incomplete control triple fails closed "..key)
+    end
    end
    local mutable=table.clone(expected)
    local snapshotSkill=load(pair,function() return mutable end)
@@ -133,7 +156,8 @@ return function(module, Config, templates, hitboxSource)
     check(invalid.GetConfig()==nil,"AC04 Invalid returned common settings fail closed")
    end
   end
-  check(#warnings>0 and warnings[1]:find("Restore",1,true),"AC04 Broken references emit actionable diagnostics")
+  local restoreGuidance=false;for _,message in warnings do if message:find("Restore",1,true) then restoreGuidance=true end end
+  check(restoreGuidance,"AC04 Broken references emit actionable restoration diagnostics")
   -- Combine actual generated Skill and actual Server script. The server receives
   -- no handwritten common-settings substitute; it resolves the updated source.
   local actor=Instance.new("Model"); actor.Name="RuntimeCaster"; actor.Parent=storage
@@ -209,6 +233,7 @@ return function(module, Config, templates, hitboxSource)
   projectileServices.Debris={AddItem=function(_,visual) check(visual.Size==Vector3.one*.5,"AC04 Shared projectile radius drives actual geometry") end}
   local function castGeneratedProjectile()
    local skill=module("Templates/ProjectileSkill.luau",projectileServices,function(key)
+    if key==projectilePair.tool.Skill:FindFirstChild("Trajectory") then return trajectory end
     assert(key==projectilePair.target,"Projectile requires own exact external module")
     return assert(loadstring(key.Source))()
    end,{script=projectilePair.tool.Skill,workspace=spatialWorld},projectilePair.tool.Skill.Source)

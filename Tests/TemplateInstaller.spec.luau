@@ -79,6 +79,19 @@ return function(loadInstaller, hitboxSource, templates)
   local beforeBegins = begins
   check(not installer.install(hitbox, malformed, "Melee", "Mouse") and #pack:GetChildren() == 0 and begins == beforeBegins, "AC06 Malformed template rejected before recording")
   malformed:Destroy()
+  for _,mode in {"missing","wrongClass","duplicate","edited"} do
+   local broken=templates.Projectile:Clone();local helper=broken.Skill.Trajectory
+   if mode=="missing" then helper:Destroy()
+   elseif mode=="wrongClass" then helper:Destroy();local wrongHelper=Instance.new("StringValue");wrongHelper.Name="Trajectory";wrongHelper.Parent=broken.Skill
+   elseif mode=="duplicate" then helper:Clone().Parent=broken.Skill
+   else helper.Source="return {Edited=true}" end
+   local prior=begins
+   check(not installer.install(hitbox,broken,"Projectile","Mouse") and begins==prior and #pack:GetChildren()==0 and #storage:GetChildren()==0,"TRAJECTORY AC06 Bad nested helper rejected before any mutation "..mode)
+   broken:Destroy()
+  end
+  failCommit=true;local prior=cancels
+  check(not install("Projectile") and #pack:GetChildren()==0 and #storage:GetChildren()==0 and cancels==prior+1,"TRAJECTORY AC06 Projectile helper/config/Tool rollback transaction")
+  failCommit=false
  end)
  storage:Destroy(); pack:Destroy(); hitbox:Destroy()
  assert(ok, failure)

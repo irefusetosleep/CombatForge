@@ -177,13 +177,13 @@ return function(module)
   reset(); local before=#visuals
   projectile.Cast(casterModel,rootPart.Position,function() return true end, projectile.GetConfig())
   check(#visuals==before and #sweep==0,"AC05 Degenerate mouse aim safe without resources")
-  reset(); hit={Instance=victimPart,Position=rootPart.Position+Vector3.new(2,0,0)}
+  reset(); hit={Instance=victimPart,Position=rootPart.Position+Vector3.new(2,0,0),Distance=2}
   projectile.Cast(casterModel,rootPart.Position+Vector3.xAxis*100,function() return true end, projectile.GetConfig())
   check(#sweep==1 and targetHum.Health==60,"AC05 First swept impact damages once and terminates")
-  reset(); hit={Instance=rootPart,Position=rootPart.Position}
+  reset(); hit={Instance=rootPart,Position=rootPart.Position,Distance=0}
   projectile.Cast(casterModel,rootPart.Position+Vector3.xAxis*100,function() return true end, projectile.GetConfig())
   check(#sweep==1 and selfHum.Health==100,"AC05 Caster cannot receive projectile damage")
-  reset(); hit={Instance=Instance.new("Part"),Position=rootPart.Position+Vector3.xAxis}
+  reset(); hit={Instance=Instance.new("Part"),Position=rootPart.Position+Vector3.xAxis,Distance=1}
   local wall=hit.Instance
   projectile.Cast(casterModel,rootPart.Position+Vector3.xAxis*100,function() return true end, projectile.GetConfig())
   wall:Destroy()

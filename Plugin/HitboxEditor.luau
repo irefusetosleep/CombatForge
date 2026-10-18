@@ -1,6 +1,7 @@
 --!strict
 -- Plugin-only draft editor. No place code is evaluated and no workspace object is created.
 local AbilityConfig = require(script.Parent.AbilityConfig)
+local Trajectory = require(script.Parent.ProjectileTrajectory)
 local Selection = game:GetService("Selection")
 local RunService = game:GetService("RunService")
 local CoreGui = game:GetService("CoreGui")
@@ -10,8 +11,11 @@ local geometryKeys = { "HitboxWidth", "HitboxHeight", "Range", "HitboxOffsetX", 
 local function finite(value): boolean
 	return type(value) == "number" and value == value and math.abs(value) < math.huge
 end
+local projectileKeys = { "ProjectileRadius", "Range", "ProjectileSpeed", "ProjectileLifetime", "ProjectileTrajectory", "ProjectileControlX", "ProjectileControlY", "ProjectileControlZ" }
 local function copy(draft)
-	if draft.ProjectileRadius ~= nil then return { ProjectileRadius = draft.ProjectileRadius } end
+	if draft.ProjectileRadius ~= nil then
+  local result = {}; for _, key in projectileKeys do result[key] = draft[key] end; return result
+ end
 	local result = {}
 	for _, key in geometryKeys do result[key] = draft[key] or 0 end
 	return result
@@ -19,7 +23,13 @@ end
 local function validGeometry(draft): boolean
 	if type(draft) ~= "table" then return false end
  if draft.ProjectileRadius ~= nil then
-  for key in draft do if key ~= "ProjectileRadius" then return false end end
+  local allowed = {}; for _, key in projectileKeys do allowed[key] = true end
+  for key in draft do if not allowed[key] then return false end end
+  for _, key in { "Range", "ProjectileSpeed", "ProjectileLifetime" } do
+   if draft[key] ~= nil and (not finite(draft[key]) or draft[key] <= 0) then return false end
+  end
+  if draft.ProjectileLifetime ~= nil and draft.ProjectileLifetime > 60 then return false end
+  if not Trajectory.resolve(draft) then return false end
   return finite(draft.ProjectileRadius) and draft.ProjectileRadius > 0 and draft.ProjectileRadius <= 256
  end
 	for _, key in geometryKeys do if not finite(draft[key]) and not (key:match("^HitboxRotation") and draft[key] == nil) then return false end end
@@ -51,7 +61,12 @@ HitboxEditor.kind = AbilityConfig.hitboxKind
 function HitboxEditor.newDraft(config)
 	local kind = AbilityConfig.hitboxKind(config)
 	if not kind then return nil, "Edit Hitbox supports complete melee box or projectile sphere configs; mixed, partial and custom configs are not supported." end
- if kind == "Projectile" then return { ProjectileRadius = config.ProjectileRadius }, nil end
+ if kind == "Projectile" then
+  local result = {}; for _, key in projectileKeys do result[key] = config[key] end
+  local resolved = Trajectory.resolve(config)
+  for key, value in resolved do result[key] = value end
+  return result, nil
+ end
 	return {
 		HitboxWidth = config.HitboxWidth, HitboxHeight = config.HitboxHeight, Range = config.Range,
 		HitboxOffsetX = config.HitboxOffsetX or 0, HitboxOffsetY = config.HitboxOffsetY or 0, HitboxOffsetZ = config.HitboxOffsetZ or 0,
@@ -90,7 +105,8 @@ function HitboxEditor.drag(baseline, mode: string, face: Enum.NormalId, distance
 	if baseline.ProjectileRadius ~= nil then
   if mode ~= "Resize" then return nil, "Projectile spheres support Resize only." end
   local radius, problem = HitboxEditor.resizeRadius(baseline.ProjectileRadius, distance)
-  return if radius then { ProjectileRadius = radius } else nil, problem
+  if not radius then return nil, problem end
+  local result = copy(baseline); result.ProjectileRadius = radius; return result, nil
  end
  local draft = copy(baseline)
 	if distance == 0 and (mode == "Move" or mode == "Resize") then return draft, nil end
@@ -156,7 +172,7 @@ function HitboxEditor.start(plugin, config, onChanged, onStopped, onStateChanged
 	local draft, problem = HitboxEditor.newDraft(config)
 	if not draft then return nil, problem end
 	local kind = AbilityConfig.hitboxKind(config)
- local sessionKeys = if kind == "Projectile" then { "ProjectileRadius" } else geometryKeys
+ local sessionKeys = if kind == "Projectile" then projectileKeys else geometryKeys
  local session = {}
 	local reference, model, humanoid
 	local objects, connections, lifetime = {}, {}, {}
@@ -168,6 +184,15 @@ function HitboxEditor.start(plugin, config, onChanged, onStopped, onStateChanged
 	local baseline, dragAxis, dragMode, dragScale
 	local history = {}
 	local gui, proxy, box, handles, arcs
+ local path, pathRoot = nil, nil
+ local pathObjects = {}
+ local playing, playDistance, playElapsed = false, 0, 0
+ local function haltPlayback()
+  playing = false; playDistance = 0; playElapsed = 0
+ end
+ local function invalidatePath()
+  haltPlayback(); path = nil
+ end
 	local function equal(a, b)
 		for _, key in sessionKeys do if a[key] ~= b[key] then return false end end
 		return true
@@ -182,10 +207,12 @@ function HitboxEditor.start(plugin, config, onChanged, onStopped, onStateChanged
 	end
 	function session.getDraft() return copy(draft) end
 	function session.getState()
-		return { kind = kind, visible = visible, mode = mode, scaleMode = scaleMode, shiftHeld = shiftHeld, space = if shiftHeld and kind ~= "Projectile" then "Global" else "Local", snapping = snaps.enabled, snapEnabled = snaps.enabled, snapIncrement = if mode == "Rotate" then snaps.rotate elseif mode == "Resize" then snaps.resize else snaps.move, snapPreferences = table.clone(snaps), canUndo = baseline ~= nil and not equal(baseline, draft) or #history > 0 }
+		return { playing = playing, kind = kind, visible = visible, mode = mode, scaleMode = scaleMode, shiftHeld = shiftHeld, space = if shiftHeld and kind ~= "Projectile" then "Global" else "Local", snapping = snaps.enabled, snapEnabled = snaps.enabled, snapIncrement = if mode == "Rotate" then snaps.rotate elseif mode == "Resize" then snaps.resize else snaps.move, snapPreferences = table.clone(snaps), canUndo = baseline ~= nil and not equal(baseline, draft) or #history > 0 }
 	end
 	local function stopRendering(message)
 		finishGesture()
+		haltPlayback(); path = nil; pathRoot = nil
+  for _, item in pathObjects do item:Destroy() end; table.clear(pathObjects)
 		visible = false; mode = "Preview"; shiftHeld = false; scaleMode = "Axis"
 		for _, connection in connections do connection:Disconnect() end
 		table.clear(connections)
@@ -204,6 +231,42 @@ function HitboxEditor.start(plugin, config, onChanged, onStopped, onStateChanged
 		table.clear(lifetime); table.clear(history)
 		if activeSession == session then activeSession = nil end
 	end
+ local function refreshPath()
+  if path and pathRoot == reference.CFrame then return end
+  haltPlayback()
+  for _, item in pathObjects do item:Destroy() end; table.clear(pathObjects)
+  local problem
+  path, problem = Trajectory.build(draft, reference.Position, reference.CFrame.LookVector, reference.CFrame.UpVector)
+  assert(path, problem)
+  pathRoot = reference.CFrame
+  local portions = {}
+  -- Static lines follow sampled chords, not per-frame collision sweep budgets.
+  for index = 2, #path.points do
+   local low, high = path.distances[index-1], path.distances[index]
+   if low >= path.limit then break end
+   if high > low then
+    local finish = path.points[index-1]:Lerp(path.points[index], (math.min(high,path.limit)-low)/(high-low))
+    table.insert(portions, { origin = path.points[index-1], finish = finish, direction = finish-path.points[index-1] })
+   end
+  end
+  local function decorate(item)
+   table.insert(pathObjects, item); item.Archivable = false; item.Adornee = reference
+   item.AlwaysOnTop = true; item.ZIndex = 1; item.Transparency = 0.45; item.Parent = gui
+   return item
+  end
+  for index, portion in portions do
+   if portion.direction.Magnitude > 0 then
+    local line = decorate(Instance.new("BoxHandleAdornment")); line.Name = "TrajectorySegment" .. index
+    line.Color3 = Color3.fromRGB(80, 210, 255); line.Size = Vector3.new(0.04, 0.04, portion.direction.Magnitude)
+    line.CFrame = reference.CFrame:ToObjectSpace(CFrame.lookAt((portion.origin+portion.finish)/2, portion.finish))
+   end
+  end
+  if draft.ProjectileTrajectory == "Bezier" then
+   local marker = decorate(Instance.new("SphereHandleAdornment")); marker.Name = "IntendedControlPoint"
+   marker.Color3 = Color3.fromRGB(255, 190, 70); marker.Radius = 0.2
+   marker.CFrame = CFrame.new(reference.CFrame:PointToObjectSpace(path.control))
+  end
+ end
 	local function refresh()
 		local frame, size = HitboxEditor.transform(reference.CFrame, draft)
 		for _, component in { frame:GetComponents() } do assert(finite(component), "Preview transform cannot be rendered.") end
@@ -211,7 +274,9 @@ function HitboxEditor.start(plugin, config, onChanged, onStopped, onStateChanged
 		assert(proxy.Size == size, "This hitbox size is outside Studio preview limits; edit its config source instead.")
 		proxy.CFrame = if shiftHeld and (mode == "Move" or mode == "Rotate") then CFrame.new(frame.Position) else frame
 		if kind == "Projectile" then
-   box.Radius = draft.ProjectileRadius; box.CFrame = CFrame.identity
+   refreshPath()
+   local spherePosition = Trajectory.position(path, playDistance)
+   box.Radius = draft.ProjectileRadius; box.CFrame = CFrame.new(reference.CFrame:PointToObjectSpace(spherePosition))
   else
    box.Size = size; box.CFrame = CFrame.new(center(draft)) * rotation(draft)
   end
@@ -253,18 +318,53 @@ function HitboxEditor.start(plugin, config, onChanged, onStopped, onStateChanged
 	function session.reset()
 		if ended then return false end
 		finishGesture()
-		local defaults = if kind == "Projectile" then { ProjectileRadius = 0.5 } else { HitboxWidth = 5, HitboxHeight = 5, Range = 6, HitboxOffsetX = 0, HitboxOffsetY = 0, HitboxOffsetZ = 0, HitboxRotationX = 0, HitboxRotationY = 0, HitboxRotationZ = 0 }
-		if equal(draft, defaults) then notify(); return false end
+  if kind == "Projectile" then invalidatePath() end
+		local defaults = if kind == "Projectile" then copy(draft) else { HitboxWidth = 5, HitboxHeight = 5, Range = 6, HitboxOffsetX = 0, HitboxOffsetY = 0, HitboxOffsetZ = 0, HitboxRotationX = 0, HitboxRotationY = 0, HitboxRotationZ = 0 }
+		if kind == "Projectile" then defaults.ProjectileRadius = 0.5 end
+		if equal(draft, defaults) then renderDraft(); notify(); return false end
 		table.insert(history, copy(draft)); draft = defaults
 		renderDraft(); notify(); return true
 	end
+ function session.commit(patch)
+  if ended or kind ~= "Projectile" or type(patch) ~= "table" then return false, "No editable projectile draft." end
+  finishGesture()
+  local candidate = copy(draft)
+  local allowed = {}; for _, key in projectileKeys do allowed[key] = true end
+  for key, value in patch do
+   if not allowed[key] then return false, "Unsupported projectile edit: " .. tostring(key) end
+   candidate[key] = value
+  end
+  local combined = table.clone(config)
+  for key, value in candidate do combined[key] = value end
+  local valid, problem = AbilityConfig.validateConfig(combined)
+  if not valid or not AbilityConfig.isProjectile(valid) then return false, problem or "Invalid projectile settings." end
+  local candidatePath, pathError = Trajectory.build(candidate, Vector3.zero, Vector3.new(0,0,-1), Vector3.yAxis)
+  if not candidatePath then return false, pathError end
+  if equal(candidate, draft) then invalidatePath(); renderDraft(); notify(); return true, "No changes." end
+  table.insert(history, copy(draft)); draft = candidate; invalidatePath(); renderDraft(); notify()
+  return true, "Projectile draft updated. Save to keep it."
+ end
+ function session.play()
+  if ended or kind ~= "Projectile" or not visible then return false, "Show Preview before playing it." end
+  finishGesture(); haltPlayback()
+  if not renderDraft() then return false, "Could not render the trajectory." end
+  playing = true; notify(); return true, "Playing collision-free sampled path with dummy-forward sample aim."
+ end
+ function session.stopPlayback()
+  if ended or kind ~= "Projectile" then return false end
+  haltPlayback(); renderDraft(); notify(); return true
+ end
 	function session.undo()
 		if ended then return false end
+  if kind == "Projectile" then invalidatePath() end
 		if baseline and not equal(baseline, draft) then
 			draft = copy(baseline); baseline = nil; dragAxis = nil; dragMode = nil; dragScale = nil
 		else
 			baseline = nil; dragAxis = nil; dragMode = nil; dragScale = nil
-			if #history == 0 then return false end
+			if #history == 0 then
+    if kind == "Projectile" then renderDraft(); notify() end
+    return false
+   end
 			draft = table.remove(history)
 		end
 		renderDraft(); notify(); return true
@@ -276,6 +376,7 @@ function HitboxEditor.start(plugin, config, onChanged, onStopped, onStateChanged
 	local function beginGesture(axis, rotationGesture)
 		if ended or not visible or (rotationGesture and mode ~= "Rotate") or (not rotationGesture and mode ~= "Move" and mode ~= "Resize") then return end
 		if getShiftHeld then session.setShiftHeld(getShiftHeld()) end
+  if kind == "Projectile" then invalidatePath(); renderDraft() end
 		finishGesture(); baseline = copy(draft); dragAxis = axis; dragMode = mode; dragScale = scaleMode; gestureRoot = reference.CFrame
 	end
 	local function endGesture(axis, rotationGesture)
@@ -297,6 +398,7 @@ function HitboxEditor.start(plugin, config, onChanged, onStopped, onStateChanged
 		else changed, failure = HitboxEditor.drag(baseline, mode, axis, amount, scaleMode, space, gestureRoot) end
 		if not changed then stopRendering(failure); return end
 		local previous = draft; draft = changed
+  if kind == "Projectile" then invalidatePath() end
 		local rendered, renderError = pcall(refresh)
 		if not rendered then
 			draft = previous
@@ -338,10 +440,19 @@ function HitboxEditor.start(plugin, config, onChanged, onStopped, onStateChanged
 			listen(arcs.MouseButton1Down, function(axis) beginGesture(axis, true) end)
 			listen(arcs.MouseButton1Up, function(axis) endGesture(axis, true) end)
 			listen(arcs.MouseDrag, function(axis, angle) drag(axis, angle, true) end)
-			listen(RunService.RenderStepped, function()
+			listen(RunService.RenderStepped, function(dt)
 				if RunService:IsRunning() then stopRendering("Preview Ended"); return end
 				if not reference:IsDescendantOf(workspace) or reference.Parent ~= model or humanoid.Parent ~= model then stopRendering("Preview Ended"); return end
 				if baseline and gestureRoot ~= reference.CFrame then finishGesture(); notify() end
+    if playing then
+     if pathRoot ~= reference.CFrame then invalidatePath(); notify()
+     else
+      local frame, problem = Trajectory.step(path, playDistance, playElapsed, dt, draft.ProjectileSpeed, draft.ProjectileLifetime)
+      if not frame then stopRendering(problem); return end
+      playDistance = frame.distance; playElapsed = frame.elapsed
+      if frame.done then playing = false; notify() end
+     end
+    end
 				renderDraft()
 			end)
 			listen(plugin.Deactivation, function() if visible then stopRendering("Preview Ended") end end)

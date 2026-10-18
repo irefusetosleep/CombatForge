@@ -7,12 +7,13 @@ export type Config = {
 	Name: string, Damage: number, Cooldown: number, Range: number,
 	AnimationId: string?, HitDelay: number?, HitboxWidth: number?, HitboxHeight: number?,
 	ProjectileSpeed: number?, ProjectileRadius: number?, ProjectileLifetime: number?, AimMode: string?,
+ ProjectileTrajectory: string?, ProjectileControlX: number?, ProjectileControlY: number?, ProjectileControlZ: number?,
 	HitboxOffsetX: number?, HitboxOffsetY: number?, HitboxOffsetZ: number?,
 	HitboxRotationX: number?, HitboxRotationY: number?, HitboxRotationZ: number?,
 }
 local fields = {
 	"Name", "Damage", "Cooldown", "Range", "AnimationId", "HitDelay", "HitboxWidth", "HitboxHeight",
-	"ProjectileSpeed", "ProjectileRadius", "ProjectileLifetime", "AimMode",
+	"ProjectileSpeed", "ProjectileRadius", "ProjectileLifetime", "AimMode", "ProjectileTrajectory", "ProjectileControlX", "ProjectileControlY", "ProjectileControlZ",
 	"HitboxOffsetX", "HitboxOffsetY", "HitboxOffsetZ", "HitboxRotationX", "HitboxRotationY", "HitboxRotationZ",
 }
 local supported: { [string]: boolean } = {}
@@ -64,6 +65,17 @@ function AbilityConfig.validateConfig(values): (Config?, string?)
 		end
 	end
 	if rotations ~= 0 and rotations ~= 3 then return nil, "Supply all three hitbox rotations or omit all three." end
+ local trajectory = values.ProjectileTrajectory
+ if trajectory ~= nil and trajectory ~= "Straight" and trajectory ~= "Bezier" then return nil, "ProjectileTrajectory must be Straight or Bezier." end
+ local controls = 0
+ for _, key in { "ProjectileControlX", "ProjectileControlY", "ProjectileControlZ" } do
+  if values[key] ~= nil then
+   controls += 1
+   if not finite(values[key]) or math.abs(values[key]) > 10000 then return nil, key .. " must be finite and between -10000 and 10000 studs." end
+  end
+ end
+ if controls ~= 0 and controls ~= 3 then return nil, "Supply all three projectile control offsets or omit all three." end
+ if trajectory == "Bezier" and controls ~= 3 then return nil, "Bezier requires all three projectile control offsets." end
 	if values.AimMode ~= nil and values.AimMode ~= "Mouse" and values.AimMode ~= "Body" then return nil, "AimMode must be Mouse or Body." end
 	if values.AnimationId ~= nil then
 		if type(values.AnimationId) ~= "string" or #values.AnimationId > 1024 or values.AnimationId:find("[%z\1-\31\127]") then
@@ -79,7 +91,7 @@ end
 function AbilityConfig.isMelee(config): boolean
 	local valid = AbilityConfig.validateConfig(config)
 	if not valid or valid.HitboxWidth == nil or valid.HitboxHeight == nil or valid.AnimationId == nil or valid.HitDelay == nil then return false end
-	for _, key in { "ProjectileSpeed", "ProjectileRadius", "ProjectileLifetime", "AimMode" } do
+	for _, key in { "ProjectileSpeed", "ProjectileRadius", "ProjectileLifetime", "AimMode", "ProjectileTrajectory", "ProjectileControlX", "ProjectileControlY", "ProjectileControlZ" } do
 		if config[key] ~= nil then return false end
 	end
 	return true

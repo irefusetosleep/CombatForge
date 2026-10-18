@@ -29,6 +29,7 @@ $modules = @{
     Theme = 'Plugin/Theme.luau'
     ColourPicker = 'Plugin/ColourPicker.luau'
     HitboxEditor = 'Plugin/HitboxEditor.luau'
+    ProjectileTrajectory = 'Runtime/ProjectileTrajectory.luau'
     AbilityConfig = 'Plugin/AbilityConfig.luau'
     AbilityManager = 'Plugin/AbilityManager.luau'
     RuntimeInstaller = 'Plugin/RuntimeInstaller.luau'
@@ -57,6 +58,11 @@ foreach ($kind in @('Melee', 'Projectile')) {
         if ($matches.Count -ne 1) { throw "Missing or duplicated $kind child: $($entry[0])" }
         Test-Source $matches[0] $entry[2]
         if ($entry[1] -ne 'ModuleScript' -and $matches[0].SelectSingleNode("Properties/bool[@name='Disabled']").InnerText -ne 'true') { throw "$kind runtime scripts must be disabled inside the plugin." }
+    }
+    if ($kind -eq 'Projectile') {
+        $helper = $template.SelectNodes("Item[@class='ModuleScript'][Properties/string[@name='Name']='Skill']/Item[@class='ModuleScript'][Properties/string[@name='Name']='Trajectory']")
+        if ($helper.Count -ne 1) { throw 'Projectile Skill must contain one Trajectory module.' }
+        Test-Source $helper[0] 'Runtime/ProjectileTrajectory.luau'
     }
     if ($template.SelectNodes("Item[@class='RemoteEvent'][Properties/string[@name='Name']='ActivateSkill']").Count -ne 1) { throw "$kind activation RemoteEvent missing or duplicated." }
 }

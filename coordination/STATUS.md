@@ -1,32 +1,47 @@
 # Current coordination state
 
-PROJECTILE-EDITOR-01 completed and installed 2026-10-17. See git log for revision.
-Spec coordination/specs/PROJECTILE-EDITOR-01.md, six ACs, no open questions.
-Base83b8d28 was clean. Native Planner (Astra medium), Coder, independent Tester
-and strictly read-only Reviewer stages completed. No active assignments.
+PROJECTILE-TRAJECTORY-01 completed and installed 2026-10-18. See git log for revision.
+Base544dd1f; only this task's work changed. Final spec seven ACs, no open questions.
+Native Planner (Astra medium), Coder, independent Tester and read-only Reviewer ran.
+No active assignments. Coordinator owns final delivery/commit; no publication/push.
 
-Back now precedes Home in pinned navigation. Complete projectile configs expose
-Edit Hitbox with a real launch sphere at selected dummy root.Position. Radius-only
-Resize/snapping/reset(.5)/Undo/Save preserves Range/speed/aim/damage. Six faces use
-radius + outward distance, snap before clamp min(.025,baseline)..256. Move/Rotate
-controls/shortcuts are absent/no-op. Melee behavior remains intact. No runtime or
-schema change; existing linked projectile Tools consume radius next Play without
-regeneration. Existing place content is preserved.
+Implemented Straight / quadratic Bezier trajectories with aim-relative midpoint
+control XYZ, speed/lifetime/Range edits, bounded reachable path/control marker and
+one-shot Play/Stop sphere preview. Radius Resize/reset/snapping and local Undo remain.
+Reset changes radius only. Preview uses dummy-forward sample aim, no collision or
+damage. Config source is never evaluated by the plugin. Saved fields retain checked
+stale-source/target/history rollback protections and unrelated settings.
 
-AC01-06 passed isolated verification: full harness2337 plus separate logo70 =2407
-assertions passed, including158 focused projectile editor checks, saved-radius
-Spherecast/visual parity, and retained WorldModel spatial regressions. Native
-factory probe passed actual SphereHandleAdornment/native Handles/proxy properties,
-fixed center and diameter, hidden initial handles/unsupported modes, Resize/Shift,
-reset/Undo, hide/reopen and cleanup. No persistent Studio content modified.
-Rojo build, Test-PluginPackage.ps1, git diff --check passed. Install-Plugin.ps1
-backed up and hash-verified local installation. Backup:
-build/plugin-backups/CombatForge-20261017-212738-3697878.rbxmx.
-Reviewer verdict: Approved based on available evidence; no blocking findings.
+Same pure Runtime/ProjectileTrajectory source is packaged in plugin and nested new
+projectile Skill.Trajectory. 128 intervals/129 points, sampled distance-based travel,
+Range/lifetime caps, ordered spherecasts <=1024 actual studs and256 portions/frame.
+Zero rounded displacements are skipped safely; excessive work fails before partial
+frame casting. Impact center uses actual cast direction/Distance with numeric checks.
+Static path draws <=128 clipped sampled chords independently of runtime sweep budget.
+Legacy absent fields remain Straight. Existing Tools/modules are preserved. Curves
+need new projectile Tool generation or manual Skill+Trajectory replacement preserving
+Config; saving alone does not upgrade old runtime. UI/docs state this explicitly.
 
-Manual checks NOT RUN: visible sphere/occlusion, physical six-face drag direction,
-keyboard delivery, native Save Undo/redo, and Save then next-Play visual collision
-integration. Mocked events and native property probes do not prove pointer delivery.
-After save/restart Studio, Update Skills -> projectile -> Edit Hitbox should show
-launch sphere; Resize grows/shrinks centered, Save changes radius only, next Play
-uses saved radius. Navigation Back is left of Home on every page. No publish/push.
+AC01-07 passed isolated verification: full injected harness4184 + separate logo70 =
+4254 assertions passed. Final fresh snapshot refreshed help text/test diagnostics.
+Includes1612 trajectory analytic/runtime checks,370 projectile editor checks, retained
+melee/template/settings/keybind/lifecycle regressions and actual WorldModel queries.
+Native factory passed actual sphere/BoxHandleAdornment path/control/native Handles,
+sampled motion after native BindableEvent render tick, Stop/commit/Undo, reference
+movement and hide cleanup. No persistent Studio test content changed.
+
+Review found numeric zero/rounded sweep defects and whole-route preview budget bug;
+Coder fixed and Tester added regressions. Engine preview startup exposed extra nil
+return passed to native PointToObjectSpace; fixed by capturing one Vector3. Fixture
+updates preserved legacy optional trajectory fields and truthful callback messages.
+Reviewer: Approved based on available evidence; no blocking findings.
+Rojo build, Test-PluginPackage.ps1 and git diff --check passed. Installer backed up
+and hash-verified local Roblox plugin. Backup:
+build/plugin-backups/CombatForge-20261018-072413-1193943.rbxmx.
+
+Manual checks NOT RUN: physical text/handle/key input, rendered path/marker appearance,
+live generated Tool motion and curved-obstacle Play integration, native Save Undo/
+Redo. Native property/event probes and injected collision tests do not prove these.
+After restarting Studio, open a projectile Edit Hitbox, select Bezier, set offsets,
+Play/Stop/Undo/Save; generate a new Tool and verify curved collision during Play.
+Check Range/lifetime truncate motion consistently and all visuals vanish on exit.

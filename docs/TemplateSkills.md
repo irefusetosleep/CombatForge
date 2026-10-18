@@ -262,9 +262,8 @@ generated melee templates; template creation keeps its version protection.
 Complete projectile configs also expose Edit Hitbox. The automatic spherical
 preview is centered exactly at the selected dummy HumanoidRootPart.Position,
 matching projectile launch. Radius and diameter display three decimal places;
-untouched stored precision is preserved. This previews the collision sphere at
-launch, not its trajectory or full travel volume. Range remains travel distance
-and is edited in the common skill form.
+untouched stored precision is preserved. The launch sphere and reachable path are previewed without collision simulation.
+Range remains maximum traveled distance and is editable in either skill form.
 
 Projectile editing exposes Resize, preview, snapping, Reset Hitbox, Undo and Save.
 Move/Rotate controls are absent and their shortcuts do nothing. Sphere resizing
@@ -275,9 +274,49 @@ the radius delta before clamping, without dividing by two. Radius is limited to
 existing valid values. If Studio cannot render a tiny sphere, the draft/source
 remain intact and a rendering error is shown.
 
-Reset changes only radius to 0.5 as one undoable draft action. Save writes only
-ProjectileRadius through the existing checked source/Undo operation, preserving
-Range, speed, lifetime, aim and damage. Preview off retains draft/history and Save
+Reset changes only radius to 0.5 as one undoable draft action. Save writes projectile radius, Range, speed, lifetime and trajectory fields through
+the existing checked source/Undo operation, preserving aim, damage and unrelated settings. Preview off retains draft/history and Save
 still works. Existing linked projectile Tools consume the saved radius on next
 Play without regeneration; custom/unlinked copies are not linked automatically.
 Back precedes Home in the fixed navigation strip on every page.
+
+
+### Straight and sampled quadratic Bezier trajectories
+
+Projectile editing adds Straight/Bezier mode, control X/Y/Z offsets in studs,
+Projectile Speed (studs/second), Lifetime (seconds), Range and Play/Stop Preview.
+Controls offset one point from the forward midpoint: X right, Y up, Z forward.
+New configs use Straight with controls (0,10,0); absent trajectory fields retain
+legacy Straight. Bezier requires a complete finite control triple within
+[-10000,10000] studs per axis. Switching to Straight retains controls on the page.
+Each valid numeric commit or mode change is one local Undo step. Invalid input
+keeps the accepted draft. Unchanged three-decimal text preserves underlying precision.
+
+The shared ProjectileTrajectory module constructs a deterministic launch aim frame,
+samples quadratic Bezier in 128 intervals (129 points), measures cumulative chord
+length and interpolates by traveled distance. This is sampled arc length, not an
+analytic constant-speed claim. Range caps traveled distance and speed * lifetime
+can shorten it further, so a curve can stop before its intended endpoint.
+
+Cyan segments show only the reachable prefix. The amber marker denotes the intended
+control point, not a reachable target. Preview uses the dummy's forward direction
+as sample aim for Mouse and Body modes; it does not follow the mouse, damage targets,
+simulate collision or create saved objects. Play starts from launch once, completion
+leaves the sphere at its reachable endpoint, and Stop returns it to launch. Editing,
+radius dragging, Reset/Undo and lifecycle changes stop motion. Moving the reference
+stops playback and redraws, instead of warping an in-flight path.
+
+Runtime captures the validated aim frame once. Body uses root forward; Mouse aims
+the same authored route toward the validated aim point. Each crossed sampled chord
+is swept in order, split to at most 1024 studs per cast, with at most 256 portions
+per frame. Invalid timing or excessive catch-up work ends safely with a diagnostic;
+collision portions are never skipped to catch up. First impact ends the shot and
+positions its center from sweep origin plus direction times hit.Distance.
+
+The exact same pure source is packaged at the plugin root and inside each new
+projectile Skill.Trajectory child. Existing Tools are preserved. Curves require a
+newly generated projectile Tool or manually replacing the old Skill implementation
+and adding its Trajectory child while preserving Skill.Config. Saving a config does
+not upgrade old code. Radius/Range/speed/lifetime still apply to older linked Tools;
+trajectory fields do not. Missing/invalid helpers fail clearly. Reset Hitbox remains
+radius-only (0.5), preserving the entire trajectory and travel settings.

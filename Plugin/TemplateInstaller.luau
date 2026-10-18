@@ -33,6 +33,10 @@ function Installer.install(hitbox: ModuleScript, template: Tool, kind: string, a
 			assert(unique(template, entry[1], entry[2]), "Template is missing " .. entry[1])
 		end
 		local source = (template:FindFirstChild("Skill") :: ModuleScript).Source
+  if kind == "Projectile" then
+   local dependency = unique(template.Skill, "Trajectory", "ModuleScript")
+   assert(dependency and dependency.Source == script.Parent.ProjectileTrajectory.Source, "Projectile Skill needs the matching Trajectory dependency; rebuild the plugin.")
+  end
 		local root = unique(Storage, "CombatForge", "Folder")
 		local abilities = if root then unique(root, "Abilities", "Folder") else nil
 		local runtime: Instance? = nil
@@ -67,6 +71,7 @@ function Installer.install(hitbox: ModuleScript, template: Tool, kind: string, a
 		else
 			settings.ProjectileSpeed = 60; settings.ProjectileRadius = 0.5
 			settings.ProjectileLifetime = 3; settings.AimMode = aimMode
+   settings.ProjectileTrajectory = "Straight"; settings.ProjectileControlX = 0; settings.ProjectileControlY = 10; settings.ProjectileControlZ = 0
 		end
 		local configSource = AbilityConfig.serialize(settings)
 		local base = "CombatForge " .. kind .. " Skill"

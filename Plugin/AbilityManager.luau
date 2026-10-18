@@ -250,13 +250,15 @@ function AbilityManager.saveGeometry(snapshot: Snapshot, geometry): (boolean, st
 	local config, parseError = AbilityConfig.parse(snapshot.source)
 	local kind = if config then AbilityConfig.hitboxKind(config) else nil
 	if not kind then return false, parseError or "Reopen a complete supported melee or projectile config." end
-	local keys = if kind == "Projectile" then { "ProjectileRadius" } else { "HitboxWidth", "HitboxHeight", "Range", "HitboxOffsetX", "HitboxOffsetY", "HitboxOffsetZ", "HitboxRotationX", "HitboxRotationY", "HitboxRotationZ" }
+	local keys = if kind == "Projectile" then { "ProjectileRadius", "Range", "ProjectileSpeed", "ProjectileLifetime", "ProjectileTrajectory", "ProjectileControlX", "ProjectileControlY", "ProjectileControlZ" } else { "HitboxWidth", "HitboxHeight", "Range", "HitboxOffsetX", "HitboxOffsetY", "HitboxOffsetZ", "HitboxRotationX", "HitboxRotationY", "HitboxRotationZ" }
 	local allowed = {}
 	for _, key in keys do allowed[key] = true end
 	if type(geometry) ~= "table" then return false, "Invalid hitbox geometry." end
 	for key in geometry do if not allowed[key] then return false, "Only hitbox geometry may be saved here." end end
 	for _, key in keys do
-		if type(geometry[key]) ~= "number" then return false, "Missing numeric geometry: " .. key end
+		if key == "ProjectileTrajectory" then
+   if type(geometry[key]) ~= "string" then return false, "Missing trajectory mode." end
+  elseif type(geometry[key]) ~= "number" then return false, "Missing numeric geometry: " .. key end
 		(config :: any)[key] = geometry[key]
 	end
 	local valid, validationError = AbilityConfig.validateConfig(config)

@@ -11,15 +11,17 @@ return function(sources)
   setfenv(chunk, environment)
   return chunk()
  end
+ local trajectoryInstance,trajectoryValue
  local function module(path, services, dependencies, globals, override)
   local environment = globals or {}
   environment.game = {GetService = function(_, name)
    if services and services[name] ~= nil then return services[name] end
    return game:GetService(name)
   end}
-  local parent = setmetatable({}, {__index = function(_, name) return name end})
+  local parent = setmetatable({}, {__index = function(_, name) return if name=="ProjectileTrajectory" and trajectoryInstance then trajectoryInstance else name end})
   environment.script = environment.script or setmetatable({Parent = parent}, {__index = function(_, name) return name end})
   environment.require = function(key)
+   if trajectoryInstance and key==trajectoryInstance then return trajectoryValue end
    if type(dependencies) == "function" then return dependencies(key) end
    return assert(dependencies and dependencies[key], "Unmapped dependency " .. tostring(key))
   end
@@ -28,14 +30,16 @@ return function(sources)
  local templates = {}
  local fixtures = {}
  local ok, failure = pcall(function()
-  local parser = module("Plugin/AbilityConfig.luau")
+  local trajectory=module("Runtime/ProjectileTrajectory.luau")
+  trajectoryValue=trajectory;trajectoryInstance=Instance.new("ModuleScript");trajectoryInstance.Source=assert(sources["Runtime/ProjectileTrajectory.luau"]);table.insert(fixtures,trajectoryInstance)
+  local parser = module("Plugin/AbilityConfig.luau",nil,{ProjectileTrajectory=trajectory})
   if sources["Tests/VisualHitboxConfig.spec.luau"] then table.insert(results,compile("Tests/VisualHitboxConfig.spec.luau")(parser)) end
   if sources["Tests/VisualHitboxSave.spec.luau"] then table.insert(results,compile("Tests/VisualHitboxSave.spec.luau")(parser,function(services)
-   return module("Plugin/AbilityManager.luau",services,{AbilityConfig=parser})
+   return module("Plugin/AbilityManager.luau",services,{AbilityConfig=parser,ProjectileTrajectory=trajectory})
   end)) end
   if sources["Tests/TemplateAllConfig.spec.luau"] then
    table.insert(results,compile("Tests/TemplateAllConfig.spec.luau")(parser,function(services)
-    return module("Plugin/AbilityManager.luau",services,{AbilityConfig=parser})
+    return module("Plugin/AbilityManager.luau",services,{AbilityConfig=parser,ProjectileTrajectory=trajectory})
    end))
   end
   -- Existing attack tests now get honest shared-config objects. The new paired
@@ -55,6 +59,7 @@ return function(sources)
    local scriptObject=Instance.new("ModuleScript"); scriptObject.Name="Skill"; scriptObject.Parent=root
    local link=Instance.new("ObjectValue"); link.Name="Config"; link.Value=shared; link.Parent=scriptObject
    local mapped={[shared]=common}
+   if path:find("Projectile",1,true) then local child=Instance.new("ModuleScript");child.Name="Trajectory";child.Source=sources["Runtime/ProjectileTrajectory.luau"];child.Parent=scriptObject;mapped[child]=trajectory end
    if path:find("Melee",1,true) then
     local runtime=Instance.new("Folder"); runtime.Name="Runtime"; runtime.Parent=root
     local hitbox=Instance.new("ModuleScript"); hitbox.Name="Hitbox"; hitbox.Parent=runtime
@@ -64,18 +69,19 @@ return function(sources)
    local actualGlobals=table.clone(globals or {}); actualGlobals.script=scriptObject
    return module(path,actualServices,mapped,actualGlobals),common
   end
+  if sources["Tests/ProjectileTrajectory.spec.luau"] then table.insert(results,compile("Tests/ProjectileTrajectory.spec.luau")(trajectory,parser,linkedModule)) end
   local theme = module("Plugin/Theme.luau")
   local keybinds=module("Plugin/Keybinds.luau")
   local snapPrefs=module("Plugin/SnapPreferences.luau")
   if sources["Tests/Snapping.spec.luau"] then table.insert(results,compile("Tests/Snapping.spec.luau")(snapPrefs,function(services)return module("Plugin/RuntimeInstaller.luau",services)end)) end
   if sources["Tests/Keybinds.spec.luau"] then table.insert(results,compile("Tests/Keybinds.spec.luau")(keybinds)) end
   if sources["Tests/VisualHitboxGeometry.spec.luau"] then
-   local editor=module("Plugin/HitboxEditor.luau",{Selection={},RunService={},CoreGui={}},{AbilityConfig=parser})
+   local editor=module("Plugin/HitboxEditor.luau",{Selection={},RunService={},CoreGui={}},{AbilityConfig=parser,ProjectileTrajectory=trajectory})
    table.insert(results,compile("Tests/VisualHitboxGeometry.spec.luau")(editor,parser,linkedModule))
   end
   if sources["Tests/VisualHitboxLifecycle.spec.luau"] then
    table.insert(results,compile("Tests/VisualHitboxLifecycle.spec.luau")(function(services,globals)
-    return module("Plugin/HitboxEditor.luau",services,{AbilityConfig=parser},globals)
+    return module("Plugin/HitboxEditor.luau",services,{AbilityConfig=parser,ProjectileTrajectory=trajectory},globals)
    end))
   end
   local colourPicker = module("Plugin/ColourPicker.luau")
@@ -101,9 +107,13 @@ return function(sources)
     return "actions[name] = function() if not busy then action() end end\n  " .. marker
    end)
    assert(replacements == 1, "UI callback instrumentation must match once")
+   instrumented = instrumented:gsub("input%.FocusLost:Connect%(function%(%)", "captureFocus(input, function()")
    instrumented = instrumented:gsub("segment%.Activated:Connect%(function%(%)", "captureSegment(segment, function()")
-   local ui = module("Plugin/UI.luau", services, {AbilityConfig=parser, AbilityManager={}, Theme=theme, ColourPicker=colourPicker, Keybinds=keybinds, SnapPreferences=snapPrefs}, {
-    actions=actions, captureSegment=function(segment, callback)
+   local ui = module("Plugin/UI.luau", services, {AbilityConfig=parser, AbilityManager={}, Theme=theme, ColourPicker=colourPicker, Keybinds=keybinds, SnapPreferences=snapPrefs,ProjectileTrajectory=trajectory}, {
+    actions=actions, captureFocus=function(input, callback)
+     actions[input.Name.."FocusLost"]=callback
+     return input.FocusLost:Connect(callback)
+    end, captureSegment=function(segment, callback)
      actions[segment.Name]=callback
      return segment.Activated:Connect(callback)
     end,
@@ -120,7 +130,7 @@ return function(sources)
    table.insert(results,compile("Tests/VisualHitboxMenu.spec.luau")(ui,actions,parser,guards))
   end
   if sources["Tests/ProjectileEditor.spec.luau"] then
-   table.insert(results,compile("Tests/ProjectileEditor.spec.luau")(parser,function(services)return module("Plugin/AbilityManager.luau",services,{AbilityConfig=parser})end,function(services,globals)return module("Plugin/HitboxEditor.luau",services,{AbilityConfig=parser},globals)end,uiLoader,linkedModule))
+   table.insert(results,compile("Tests/ProjectileEditor.spec.luau")(parser,function(services)return module("Plugin/AbilityManager.luau",services,{AbilityConfig=parser,ProjectileTrajectory=trajectory})end,function(services,globals)return module("Plugin/HitboxEditor.luau",services,{AbilityConfig=parser,ProjectileTrajectory=trajectory},globals)end,uiLoader,linkedModule))
   end
   if sources["Tests/EditorInput.spec.luau"] then table.insert(results,compile("Tests/EditorInput.spec.luau")(uiLoader,keybinds,theme,parser)) end
   table.insert(results, compile("Tests/Startup.spec.luau")(function(plugin, dependencies, playing)
@@ -140,10 +150,11 @@ return function(sources)
      child.Source = assert(sources[path], "Missing template source " .. path)
     end
     child.Parent = tool
+    if kind=="Projectile" and name=="Skill" then local helper=Instance.new("ModuleScript");helper.Name="Trajectory";helper.Source=assert(sources["Runtime/ProjectileTrajectory.luau"]);helper.Parent=child end
    end
   end
   table.insert(results, compile("Tests/TemplateInstaller.spec.luau")(function(services)
-   return module("Plugin/TemplateInstaller.luau", services, {AbilityConfig=parser})
+   return module("Plugin/TemplateInstaller.luau", services, {AbilityConfig=parser,ProjectileTrajectory=trajectory})
   end, assert(sources["Runtime/Hitbox.luau"]), templates))
   -- Runtime suites receive the same source loader; all callbacks/services are
   -- supplied by the spec, with real isolated Instances where they matter.
@@ -154,11 +165,11 @@ return function(sources)
    table.insert(results, compile("Tests/TemplateWorld.spec.luau")(linkedModule))
   end
   if sources["Tests/TemplateSharedConfig.spec.luau"] then
-   table.insert(results,compile("Tests/TemplateSharedConfig.spec.luau")(module,parser,templates,assert(sources["Runtime/Hitbox.luau"])))
+   table.insert(results,compile("Tests/TemplateSharedConfig.spec.luau")(module,parser,templates,assert(sources["Runtime/Hitbox.luau"]),trajectory))
   end
   for _, path in {"Tests/AbilityCreation.spec.luau","Tests/AbilityUpdate.spec.luau","Tests/AbilityDelete.spec.luau"} do
    if sources[path] then table.insert(results,compile(path)(parser,function(services)
-    return module("Plugin/AbilityManager.luau",services,{AbilityConfig=parser})
+    return module("Plugin/AbilityManager.luau",services,{AbilityConfig=parser,ProjectileTrajectory=trajectory})
    end)) end
   end
  end)
